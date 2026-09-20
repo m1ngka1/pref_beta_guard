@@ -80,3 +80,13 @@ OPENBLAS_NUM_THREADS=1 VECLIB_MAXIMUM_THREADS=1 \
 为保持常规调用速度，股票协方差方案默认不执行完整矩阵特征值检查；验证中使用 `check_psd=True`。因子协方差方案始终检查因子 F，额外完整矩阵检查也可开启。没有自动裁剪特征值、调整权重或放宽 beta 约束。
 
 这些测试验证公式实现、约束处理和优化器对接，不验证真实市场上的预测效果，也不保证任意后续持仓约束都可行。
+
+## 增补：缺少市场权重时的恢复验证
+
+`market_recovery.py` 新增 dense 求解与因子结构求解两条路径。输入支持 X 为 N×K、F 为 K×K dense covariance、D 为 N×N 对角矩阵，以及 beta 为 N×1 列向量；也支持 D 对角线和 beta 的一维数组形式。
+
+`tests/test_market_recovery.py` 实际运行结果为 **43 passed**。其中包含 20 组随机模型的已知权重恢复、两条求解路径对照、奇异 F、零权重股票、单位缩放，以及输入不完整或 beta 经过变换后的兼容性诊断。另验证恢复出的正权重可接入现有股票协方差调整函数。
+
+六股票示例的真实市场方差为 0.0559085，因子路径恢复值为 0.05590849999999985，权重最大误差为 7.22e-16；与 dense 路径的权重差异为 6.94e-16。实际输出见 [recovery_results.json](recovery_results.json)，运行方法与解释见 [MARKET_RECOVERY.md](MARKET_RECOVERY.md)。
+
+这是合成数据上的代数验证。当前用户确认没有本地实际模型数据，因此未声称完成真实 Barra 权重恢复。
