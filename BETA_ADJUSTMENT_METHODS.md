@@ -214,7 +214,7 @@ $$
 =\beta^*.
 $$
 
-输出为 $\beta^*,F^*$，以及按需生成的 $\Sigma^*$。整个流程是“一次二次规划＋闭式更新”，没有第二个优化问题，也没有额外的历史回归。已有 $X,F,D,w$ 时，不需要另外提供 factor portfolio 权重。
+输出为 $\beta^*,F^*$；当前因子协方差实现也直接返回完整 $\Sigma^*$。整个流程是“一次二次规划＋闭式更新”，没有第二个优化问题，也没有额外的历史回归。已有 $X,F,D,w$ 时，不需要另外提供 factor portfolio 权重。
 
 ## 4. 当前选择与检查
 
@@ -234,4 +234,46 @@ $$
 p^\top\Sigma^*p=\|U^\top z\|_2^2+\sum_i d_i z_i^2.
 $$
 
-其中 d 是对角 specific variance。风险计算仍然利用因子结构，并与完整矩阵结果一致。凸优化中需要显式辅助变量来避免展开成大矩阵；新增 `stock_covariance.adjust_from_factors` 和 `cvxpy_risk` 已实现该接口。完整推导、导出矩阵及下游集成顺序见 [STRUCTURED_INTEGRATION.md](STRUCTURED_INTEGRATION.md)。
+其中 d 是对角 specific variance。风险计算仍然利用因子结构，并与完整矩阵结果一致。凸优化中需要显式辅助变量来避免展开成大矩阵；新增 `stock_covariance.adjust_from_factors` 和 `cvxpy_risk` 已实现该接口。接入方式见 [SNAPSHOT_INTEGRATION.md](SNAPSHOT_INTEGRATION.md)。F 的平方根仅将相对 1e-12 容差内的负特征值舍入为零并报告误差，实质不定的 F 会报错。
+
+
+### 只优化股票子集时
+
+设交易集合 J 有 M 只股票，完整模型有 N 只。先在完整模型上校准，再取子集；不重新归一化市场权重。预计算
+
+$$
+h=U^\top w,\qquad v_{out}=\sum_{i\notin J}d_iw_i^2.
+$$
+
+对 M 维暴露 p，令 $t=\delta_J^\top p$、$z=p+w_Jt$、$y=U_J^\top p+ht$，则
+
+$$
+p^\top\Sigma^*_{JJ}p=\|y\|^2+\sum_{i\in J}d_i z_i^2+v_{out}t^2.
+$$
+
+最后一项保留了集合外股票在变换后的 specific risk，不能省略。视图准备需一次 O(NK+N)，此后风险计算和优化系数规模为 O(MK+M)。输出矩阵使用
+
+$$
+\Sigma^*_{JJ}=U_JU_J^\top+\operatorname{diag}(d_J)
++s(\beta_J\delta_J^\top+\delta_J\beta_J^\top+\delta_J\delta_J^\top).
+$$
+
+完整模型准备约 O(NK²+K³+N×二分迭代数)，存储 O(NK+N)，工作区另有 K²。导出 M×M 矩阵需要 O(M²K) 计算和 O(M²) 输出空间。优化器本身的迭代与分解耗时不包含在这些界限内。
+
+## 6. 缺少市场权重时的恢复
+
+给定同口径的原 predicted beta，假设 $\Sigma\succ0$ 且 $\beta\ne0$。先解线性方程 $\Sigma v=\beta$，再得到
+
+$$
+s=\frac{1}{\beta^\top v},\qquad w=\frac{v}{\beta^\top v}.
+$$
+
+分母不是 v 的元素之和，不能直接归一化 v。任何非零 beta 在正定 Sigma 下都有一组隐含权重，所以重现 beta 并不能证明它是实际市场；还要检查 w 非负、合计为 1，以及原 beta 的市场定义。恢复的是 beta 的参考市场，不一定是纯因子的 factor-mimicking portfolio。
+
+当 d 严格为正时，令 $U=XC$、$F=CC^\top$，无需构造 N×N 矩阵：
+
+$$
+v=D^{-1}\beta-D^{-1}U(I+U^\top D^{-1}U)^{-1}U^\top D^{-1}\beta.
+$$
+
+实现解 K×K 系统，不显式计算逆，也不要求 F 可逆。`market_recovery.recover_from_factors(X, F, d, beta)` 使用该路径；`recover_from_covariance(Sigma, beta)` 是完整矩阵参考路径，也适用于相关 D。两者返回原始权重与诊断，不截负、不归一化。数值求解失败会明确报错；恢复诊断通过不代表一定满足后续入口更严格的浮点检查。

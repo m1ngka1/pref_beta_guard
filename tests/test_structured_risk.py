@@ -1,8 +1,8 @@
 import numpy as np
 import pytest
 
-from beta_guard import adjust_covariance
-from structured import adjust_from_factors
+from stock_covariance.beta_guard import adjust_covariance
+from stock_covariance.structured import adjust_from_factors
 
 
 def inputs(seed=0, n=25, k=4):

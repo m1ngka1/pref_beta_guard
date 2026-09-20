@@ -1,0 +1,2 @@
+include SNAPSHOT_INTEGRATION.md BETA_ADJUSTMENT_METHODS.md uv.lock
+recursive-include examples *.py

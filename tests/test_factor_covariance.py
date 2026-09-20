@@ -2,7 +2,7 @@ import cvxpy as cp
 import numpy as np
 import pytest
 
-from beta_guard import (
+from factor_covariance.beta_guard import (
     InfeasibleAdjustmentError,
     SolverFailureError,
     adjust_factor_covariance,

@@ -6,6 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "barra-beta-guard"
 version = "0.2.0"
 description = "Single-snapshot Barra beta adjustment and structured downstream risk"
+readme = "README.md"
 requires-python = ">=3.11"
 dependencies = ["numpy>=2,<3"]
 
@@ -16,7 +17,7 @@ optimization = ["cvxpy>=1.6,<2"]
 dev = ["pytest>=8,<10"]
 
 [tool.setuptools]
-packages = ["barra_guard", "stock_covariance"]
+packages = ["barra_guard", "stock_covariance", "factor_covariance"]
 py-modules = ["market_recovery"]
 
 [tool.pytest.ini_options]

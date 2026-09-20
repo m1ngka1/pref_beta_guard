@@ -20,7 +20,7 @@ adjusted = adjust_barra(
 
 X 为 N×K，F 为 K×K，d 为 N 个 specific variance（也接受 N×1 或 N×N 对角矩阵）。w、beta 为 N 或 N×1。**没有时间维度**；对角元素必须是方差，不是波动率。若 loader 返回 DataFrame/Series，在原数据层按一致顺序 `.reindex(...)` 后转成 NumPy；此模块不再重复实现表格对齐。
 
-有 w 就直接使用；缺 w 时从 X/F/d/beta 恢复。两者都有时会检查原 beta 与模型是否一致。权重必须非负且合计为 1，不自动截负或归一化；恢复权重的边界条件见 [MARKET_RECOVERY.md](MARKET_RECOVERY.md)。输入错误或无法满足数值容差会明确报错，不返回部分结果。
+有 w 就直接使用；缺 w 时从 X/F/d/beta 恢复。两者都有时会检查原 beta 与模型是否一致。权重必须非负且合计为 1，不自动截负或归一化；恢复时要求 d 严格为正，必须包含参考市场全部成分股；重现 beta 本身不能证明恢复的是供应商实际市场。诊断容差为 1e-8，但调整入口要求 w 严格非负、合计误差不超过 1e-12，所以微小负权重也可能被拒绝；不会静默修正。推导见 [数学说明](BETA_ADJUSTMENT_METHODS.md)。输入错误或无法满足数值容差会明确报错，不返回部分结果。
 
 ## 2. context 保存什么
 
@@ -69,6 +69,8 @@ for t in range(number_of_trading_days):
     constraints.extend(block.constraints)  # 必须加入，否则风险与持仓脱离
 ```
 
+辅助等式能避免 CVXPY 将 `w * (delta @ p)` 直接展开成 N×N 系数；不要内联重写这些平方项。
+
 这里的未来持仓/价格属于下游规划，**不是每日重新加载 Barra**。份额到金额的转换及已有数值缩放由下游掌握；这个模块只接收最终暴露，不再包一层 planner adapter。跟踪误差使用 `p - benchmark`。
 
 若只接受完整矩阵，可先将 `risk.to_dense()` 存入 context，再沿用 `cp.quad_form`。这条路径简单，但有矩阵存储成本。若下游在求解前给持仓赋值以计算参考目标，子集风险块支持 `block.set_reference_values()` 同步辅助变量；更简单的方式是用 `risk.variance(reference_exposure)` 数值计算风险。优化与报告必须使用同一份调整后风险。
@@ -85,7 +87,7 @@ for t in range(number_of_trading_days):
 
 直接迁移时一起带走 `barra_guard/`、`stock_covariance/` 的 Python 文件及 `market_recovery.py`；保留包内相对导入，也可安装根目录包。没有 pandas、Trade Planner 或日期管线依赖；仅计算调整和数值风险只需 NumPy，调用 CVXPY 接口时才需要 CVXPY。
 
-之前的 `BarraSnapshot` 对象入口、多日期 `adjust_factor_risk_data` 和 planner adapter 已移除；当前版本为 0.2.0。入口收敛为上面的数组函数，没有兼容包装层。
+可选的因子协方差方案单独位于 `factor_covariance/`，只有选择该方法时才需迁移；根目录安装包已包含两种方案。所有测试在 `tests/`，只维护根目录一份配置和锁文件。
 
 ```bash
 uv sync --locked --extra optimization
@@ -93,4 +95,4 @@ uv run --locked --extra optimization python examples/standalone_barra.py
 uv run --locked --extra optimization pytest -q
 ```
 
-完整推导与性能边界可选读 [STRUCTURED_INTEGRATION.md](STRUCTURED_INTEGRATION.md)；日常接入只需要本页和入口函数。
+结构化表示避免 N×N 风险矩阵的存储和展开，但不保证每个求解器或规模都更快；小规模 dense 可能更快。实际接入仍应对比风险、持仓约束、编译及求解耗时。推导见 [BETA_ADJUSTMENT_METHODS.md](BETA_ADJUSTMENT_METHODS.md)。

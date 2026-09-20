@@ -10,10 +10,7 @@ from typing import Any
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
 
-if __package__:
-    from .beta_guard import NumericalError, _covariance, _weights, calibrate_betas
-else:  # Allows `from structured import ...` inside this standalone project.
-    from beta_guard import NumericalError, _covariance, _weights, calibrate_betas
+from .beta_guard import NumericalError, _covariance, _weights, calibrate_betas
 
 FloatArray = NDArray[np.float64]
 

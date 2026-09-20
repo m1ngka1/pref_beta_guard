@@ -3,7 +3,7 @@ from itertools import combinations
 import numpy as np
 import pytest
 
-from beta_guard import NumericalError, adjust_covariance, calibrate_betas
+from stock_covariance.beta_guard import NumericalError, adjust_covariance, calibrate_betas
 
 
 def covariance_with_beta(beta, weights, market_variance=0.09):
