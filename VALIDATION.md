@@ -127,14 +127,12 @@ OPENBLAS_NUM_THREADS=1 VECLIB_MAXIMUM_THREADS=1 stock_covariance/.venv/bin/pytho
 OPENBLAS_NUM_THREADS=1 VECLIB_MAXIMUM_THREADS=1 stock_covariance/.venv/bin/python benchmark_structured.py
 ```
 
-## 增补：独立包与 Trade Planner 数据接口
+## 当前入口：单次最新快照
 
-新增根目录安装配置和 `barra_guard` 模块：标签化快照、多日期表格适配、统一权重来源、紧凑股票子集，以及结构化/显式 dense 两种 planner 适配器。根目录环境另安装 pandas 3.0.6，保留子目录独立环境。
+按实际使用方式收敛：数据加载后调用 `adjust_barra(X, F, d, ...)` 一次，结果保存进 context，未来各日复用同一份风险模型。移除了多日期表格管线、Trade Planner bridge、强制 snapshot 元数据及 pandas 依赖。原始数学核心与两种方法保持不变。
 
-最终完整验证为 **214 passed**：根目录 86、股票协方差 104、因子协方差 24。新增 26 项测试覆盖按标签和日期对齐、输入错误、子集公式等价、普通/缩放持仓、参考目标辅助变量赋值及子集求解矩阵大小。完整市场 100 与 1,000 股票、交易股票固定 5 只时，求解器风险变量和约束非零项数量相同。
+旧 bridge 的合成验证属于提交 `76caad0` 的历史结果，相关脚本和结果现已移除。当前版本不对 Trade Planner 做任何自动接入；接入说明见 [SNAPSHOT_INTEGRATION.md](SNAPSHOT_INTEGRATION.md)。
 
-使用实际参考 Trade Planner 的类运行合成对照，普通与 per_name 两种模式均 optimal，最大交易差异 6.7e-8 股，硬约束证书通过。原始输出见 [trade_planner_bridge_results.json](trade_planner_bridge_results.json)。这是实际代码接口上的合成数据验证，不是生产数据验证；参考仓库未修改。
+新测试直接检查一个准备结果被多个未来持仓表达式复用，验证风险与同一 Σ* 一致、输入后续变化不会污染已准备结果；也保留权重恢复、子集等价和求解规模检查。
 
-根目录项目已构建 wheel，并在 `/private/tmp` 下全新环境只安装该 wheel 和 NumPy，使用隔离导入运行成功；pandas、CVXPY 和 Trade Planner 均未安装到该隔离环境。说明核心包不依赖工作目录或原工程的隐含 import。
-
-安装、测试、参考仓库验证和后续集成的完整命令见 [TRADE_PLANNER_INTEGRATION.md](TRADE_PLANNER_INTEGRATION.md)。
+当前回归结果为 **208 passed**：根目录 80（其中单快照入口 20）、股票协方差 104、因子协方差 24。测试数量变化是移除了已删除多日期/bridge 的测试，并增加单次准备、多日复用及输入隔离检查。独立例子运行 optimal，0.2.0 wheel 在仓库外仅有 NumPy 的环境里通过预处理和子集风险验证；无 pandas、CVXPY 或 planner 模块依赖。

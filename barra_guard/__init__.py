@@ -1,5 +1,5 @@
-"""NumPy core. Table and optimizer adapters are explicit optional imports."""
+"""One latest Barra snapshot in, adjusted risk out; NumPy-only until optimization."""
 
-from .core import AdjustedBarra, BarraSnapshot, BarraView, adjust_barra
+from .prepare import AdjustedBarra, adjust_barra
 
-__all__ = ["BarraSnapshot", "AdjustedBarra", "BarraView", "adjust_barra"]
+__all__ = ["AdjustedBarra", "adjust_barra"]

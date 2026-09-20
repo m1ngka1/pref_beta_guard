@@ -2,7 +2,7 @@
 
 本文是交给下游优化代码维护者的集成说明。实现已经提供：优先调用 `stock_covariance.adjust_from_factors`，通过返回对象的 `cvxpy_risk` 把修正后的风险接入优化器；仅在需要导出时调用 `to_dense`。不需要重新实现 beta 调整算法。
 
-若从带标签/日期的 Barra 数据接入现有应用，优先使用新增 `barra_guard` 外层模块，见 [TRADE_PLANNER_INTEGRATION.md](TRADE_PLANNER_INTEGRATION.md)。它复用本文核心，并提供更紧凑的交易子集风险公式；下文稀疏 scatter 仍数学正确，但生产子集接入优先使用 `for_symbols`，避免完整 N 维辅助变量。
+当前应用入口是单次快照函数 `barra_guard.adjust_barra(X, F, d, ...)`，见 [SNAPSHOT_INTEGRATION.md](SNAPSHOT_INTEGRATION.md)。运行当天处理一次，未来各日复用；不提供多日期数据管线或 planner bridge。子集风险优先使用 `for_symbols`，避免完整 N 维辅助变量。
 
 这次增强保持股票协方差方案的数学结果，只改变存储和计算方式。`factor_covariance/` 方案及原来的 `adjust_covariance(Sigma, w)` 接口保持不变。
 
@@ -252,8 +252,8 @@ asset_variances = model.diagonal()      # diag(Σ*)
 同一修正模型下，dense 和 structured 的持仓最大差异约 1.2e-11。原始测量、各次编译/求解耗时、稀疏矩阵规模和约束误差保存在 [structured_benchmark_results.json](structured_benchmark_results.json)。复现（在仓库根目录）：
 
 ```bash
-# 根目录全部测试现在还包含 pandas 表格适配测试，使用根目录环境
-uv sync --locked --extra tables --extra optimization
+# 使用根目录环境
+uv sync --locked --extra optimization
 OPENBLAS_NUM_THREADS=1 VECLIB_MAXIMUM_THREADS=1 \
   .venv/bin/python -m pytest tests -q
 OPENBLAS_NUM_THREADS=1 VECLIB_MAXIMUM_THREADS=1 \

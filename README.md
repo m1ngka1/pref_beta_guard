@@ -1,13 +1,21 @@
 # Predicted beta guard
 
-推荐下游集成从 [Standalone 模块与 Trade Planner 接入说明](TRADE_PLANNER_INTEGRATION.md) 开始。根目录已提供可安装的 `barra-beta-guard` 包：完整 Barra 数据输入，输出带股票/日期标签的调整结果，支持已有或恢复的市场权重、精确股票子集风险、CVXPY 风险块和完整矩阵导出。
+推荐从 [单次快照处理与 context 接入](SNAPSHOT_INTEGRATION.md) 开始。数据加载并对齐后，处理一次运行当天最新的 X、F、specific variance 和市场权重/原 beta，将结果放进 context；未来所有交易日复用这份结果。
 
-```bash
-uv sync --locked --extra tables --extra optimization
-uv run --locked --extra tables --extra optimization python examples/standalone_barra.py
+```python
+from barra_guard import adjust_barra
+
+adjusted = adjust_barra(X, F, d, market_weights=w, predicted_beta=beta, symbols=symbols)
+# context 的字段由你的工程定义：保存 adjusted.predicted_beta 和 adjusted.risk。
+# 若只交易一个子集：保存 adjusted.for_symbols(traded_symbols)。
 ```
 
-数组入口为 `from barra_guard import BarraSnapshot, adjust_barra`；Trade Planner 风格表格入口为 `from barra_guard.tabular import adjust_factor_risk_data`。该包不依赖 Trade Planner；其风险适配器位于 `barra_guard/planner.py`。本地参考仓库仅用于只读对照验证，未修改。
+核心仅依赖 NumPy，没有日期循环、表格 loader 或 planner bridge。完整矩阵可按需通过 `to_dense()` 生成；需要 CVXPY 时安装可选依赖：
+
+```bash
+uv sync --locked --extra optimization
+uv run --locked --extra optimization python examples/standalone_barra.py
+```
 
 两套独立的参考实现，分别保存在 `stock_covariance/` 与 `factor_covariance/`。每个目录都有实现、示例、测试、独立 uv 环境和依赖锁文件，不互相导入。
 
@@ -18,7 +26,7 @@ uv run --locked --extra tables --extra optimization python examples/standalone_b
 | [数学说明](BETA_ADJUSTMENT_METHODS.md) | 两种方法的变量定义、公式与计算顺序。 |
 | [市场权重恢复](MARKET_RECOVERY.md) | 缺少市场权重时，从 X、F、对角 D 和原 beta 求出隐含权重与市场方差。 |
 | [结构化优化集成说明](STRUCTURED_INTEGRATION.md) | 给下游 Agent 的完整接入说明：避免 N×N 展开、CVXPY 风险项、tracking error、子集、矩阵导出与性能实测。 |
-| [Standalone / Trade Planner 集成](TRADE_PLANNER_INTEGRATION.md) | 标签及日期对齐、完整市场到交易子集、provider/context/risk 插件、目标缩放与报告一致性。 |
+| [快照预处理与接入](SNAPSHOT_INTEGRATION.md) | 单次函数调用、context 中保存什么、未来各日复用、迁移文件清单。 |
 | [验证记录](VALIDATION.md) | 本地测试结果、复现命令和端到端组合优化检查。 |
 
 以股票协方差方案为例：
