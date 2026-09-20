@@ -1,6 +1,32 @@
 # 股票协方差方案：股票协方差调整
 
-独立的 NumPy 实现，不使用 CVXPY，也不需要历史回归。输入股票协方差和市场权重，二分法计算统一下限与平移量，再闭式更新协方差。
+独立的 NumPy 调整实现，不需要凸优化器或历史回归。二分法计算统一下限与平移量，再闭式更新协方差。新增结构化接口直接接收 X、F、specific variance 和市场权重，避免生成完整股票协方差，并提供可选的 CVXPY 风险接口。
+
+**下游 Agent 集成请先读 [完整集成说明](../STRUCTURED_INTEGRATION.md)**，其中包含数学推导、输入约定、可运行例子、辅助约束、tracking error、股票子集、矩阵导出、速度结果和验收顺序。
+
+## 推荐的结构化调用
+
+在本目录中：
+
+```python
+from structured import adjust_from_factors
+
+model = adjust_from_factors(X, F, d, market_weights, lower_bound=0.15)
+variance = model.variance(portfolio_weights)
+beta_star = model.beta_after
+Sigma_star = model.to_dense()  # 按需调用；优化时通常不需要
+```
+
+在仓库根目录或作为模块集成时使用 `from stock_covariance import adjust_from_factors`。d 是方差向量；也接受对角 D，不能是一般相关 specific covariance。返回对象还提供 `matvec`、`gradient`、`diagonal`、`to_dense(indices)` 和 `cvxpy_risk`。
+
+可选的凸优化演示：
+
+```bash
+uv sync --locked --extra optimization
+uv run --locked --extra optimization python structured_example.py
+```
+
+`risk = model.cvxpy_risk(p)` 返回 `risk.variance`、`risk.volatility` 和 **必须加入问题的 `risk.constraints`**。持仓约束和 alpha 仍作用于 p，不作用于内部辅助变量。不要自行将线性变换展开成 N×N 矩阵。
 
 ## 运行
 
@@ -14,7 +40,7 @@ uv run --locked pytest -q
 
 依赖与版本固定在本目录的 `pyproject.toml` 和 `uv.lock`；虚拟环境是本目录的 `.venv`。测试同样不依赖凸优化器。
 
-## 调用
+## 原完整矩阵接口（保持兼容）
 
 ```python
 from beta_guard import adjust_covariance
@@ -46,7 +72,7 @@ beta_new = result.beta_after
 
 上述输入条件下，标量方程有唯一非负解；更新保持市场方差、剔除市场后的剩余协方差和 beta 的弱排序。低 beta 可以并列。实现中的保证以数值容差为准，不会把未收敛结果当作成功。
 
-二分法每轮为 O(N)，生成完整输出矩阵为 O(N²)；启用完整 PSD 检查为 O(N³)。不修改输入、不自动归一化权重、不裁剪特征值。`ValueError` 表示非法输入，`NumericalError` 表示收敛或重建检查失败。
+原 dense 接口中，二分法每轮为 O(N)，生成完整输出矩阵为 O(N²)；启用完整 PSD 检查为 O(N³)。不修改输入、不自动归一化权重、不裁剪特征值。结构化接口需要对 K×K 的 F 求平方根，仅允许将 1e-12 相对容差内的负特征值舍入为零，并报告重建误差；没有实质性的 PSD 修复。`ValueError` 表示非法输入，`NumericalError` 表示收敛或重建检查失败。
 
 ## 验证
 

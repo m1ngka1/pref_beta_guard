@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "barra-beta-guard"
+version = "0.1.0"
+description = "Standalone labeled Barra beta adjustment and structured downstream risk"
+requires-python = ">=3.11"
+dependencies = ["numpy>=2,<3"]
+
+[project.optional-dependencies]
+tables = ["pandas>=2.2,<4"]
+optimization = ["cvxpy>=1.6,<2"]
+
+[dependency-groups]
+dev = ["pytest>=8,<10"]
+
+[tool.setuptools]
+packages = ["barra_guard", "stock_covariance"]
+py-modules = ["market_recovery"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

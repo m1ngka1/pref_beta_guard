@@ -1,0 +1,1101 @@
+{
+  "python": "3.14.4",
+  "numpy": "2.5.3",
+  "cvxpy": "1.9.3",
+  "osqp": "1.1.3",
+  "machine": "arm64",
+  "notes": [
+    "Synthetic inputs only; cold CVXPY problems, rotated run order.",
+    "Array bytes exclude input retention, intermediate arrays, solver workspace and RSS.",
+    "Dense uses psd_wrap; factor baseline has a different covariance/optimum.",
+    "Performance depends on factor count, conditioning, solver and portfolio constraints."
+  ],
+  "cases": [
+    {
+      "n_assets": 100,
+      "n_factors": 40,
+      "repeats": 3,
+      "structured_prepare_seconds": 0.0030841250554658473,
+      "dense_export_seconds": 8.19170381873846e-05,
+      "structured_stored_array_bytes": 36800,
+      "dense_stored_array_bytes": 80000,
+      "negative_beta_before": 9,
+      "beta_floor_after": 0.15000000000003721,
+      "dense_structured_max_weight_error": 4.540985643064488e-13,
+      "dense_structured_max_objective_error": 1.3081202787645907e-13,
+      "medians": {
+        "original_factor": {
+          "compile_seconds": 0.0026263330364599824,
+          "solve_wall_seconds": 0.021154957998078316,
+          "compile_plus_solve_seconds": 0.023708917025942355,
+          "solver_reported_seconds": 0.020232873999999998,
+          "iterations": 3800.0,
+          "canonical_sparse_bytes": 78264.0
+        },
+        "adjusted_dense": {
+          "compile_seconds": 0.002395666961092502,
+          "solve_wall_seconds": 0.005896207992918789,
+          "compile_plus_solve_seconds": 0.008203915960621089,
+          "solver_reported_seconds": 0.005001374,
+          "iterations": 625.0,
+          "canonical_sparse_bytes": 170424.0
+        },
+        "adjusted_structured": {
+          "compile_seconds": 0.0030704999808222055,
+          "solve_wall_seconds": 0.020499125006608665,
+          "compile_plus_solve_seconds": 0.023492957989219576,
+          "solver_reported_seconds": 0.019714582,
+          "iterations": 2750.0,
+          "canonical_sparse_bytes": 87104.0
+        }
+      },
+      "runs": {
+        "original_factor": [
+          {
+            "status": "optimal",
+            "compile_seconds": 0.004289250005967915,
+            "solve_wall_seconds": 0.021532290964387357,
+            "compile_plus_solve_seconds": 0.025821540970355272,
+            "solver_reported_seconds": 0.020606791,
+            "iterations": 3800,
+            "objective": 0.032645111907155806,
+            "holding_constraint_violation": 1.0611443064957132e-16,
+            "P": {
+              "shape": [
+                140,
+                140
+              ],
+              "nnz": 140,
+              "bytes": 3368
+            },
+            "A": {
+              "shape": [
+                41,
+                140
+              ],
+              "nnz": 4140,
+              "bytes": 67368
+            },
+            "F": {
+              "shape": [
+                202,
+                140
+              ],
+              "nnz": 400,
+              "bytes": 7528
+            },
+            "canonical_sparse_bytes": 78264
+          },
+          {
+            "status": "optimal",
+            "compile_seconds": 0.002553959027864039,
+            "solve_wall_seconds": 0.021154957998078316,
+            "compile_plus_solve_seconds": 0.023708917025942355,
+            "solver_reported_seconds": 0.020232873999999998,
+            "iterations": 3800,
+            "objective": 0.032645111907155806,
+            "holding_constraint_violation": 1.0611443064957132e-16,
+            "P": {
+              "shape": [
+                140,
+                140
+              ],
+              "nnz": 140,
+              "bytes": 3368
+            },
+            "A": {
+              "shape": [
+                41,
+                140
+              ],
+              "nnz": 4140,
+              "bytes": 67368
+            },
+            "F": {
+              "shape": [
+                202,
+                140
+              ],
+              "nnz": 400,
+              "bytes": 7528
+            },
+            "canonical_sparse_bytes": 78264
+          },
+          {
+            "status": "optimal",
+            "compile_seconds": 0.0026263330364599824,
+            "solve_wall_seconds": 0.02075000002514571,
+            "compile_plus_solve_seconds": 0.023376333061605692,
+            "solver_reported_seconds": 0.020028249,
+            "iterations": 3800,
+            "objective": 0.032645111907155806,
+            "holding_constraint_violation": 1.0611443064957132e-16,
+            "P": {
+              "shape": [
+                140,
+                140
+              ],
+              "nnz": 140,
+              "bytes": 3368
+            },
+            "A": {
+              "shape": [
+                41,
+                140
+              ],
+              "nnz": 4140,
+              "bytes": 67368
+            },
+            "F": {
+              "shape": [
+                202,
+                140
+              ],
+              "nnz": 400,
+              "bytes": 7528
+            },
+            "canonical_sparse_bytes": 78264
+          }
+        ],
+        "adjusted_dense": [
+          {
+            "status": "optimal",
+            "compile_seconds": 0.0025986669934354722,
+            "solve_wall_seconds": 0.005896207992918789,
+            "compile_plus_solve_seconds": 0.008494874986354262,
+            "solver_reported_seconds": 0.004994458,
+            "iterations": 625,
+            "objective": 0.0831038553749021,
+            "holding_constraint_violation": 2.220446049250313e-16,
+            "P": {
+              "shape": [
+                100,
+                100
+              ],
+              "nnz": 10000,
+              "bytes": 160808
+            },
+            "A": {
+              "shape": [
+                1,
+                100
+              ],
+              "nnz": 100,
+              "bytes": 2408
+            },
+            "F": {
+              "shape": [
+                202,
+                100
+              ],
+              "nnz": 400,
+              "bytes": 7208
+            },
+            "canonical_sparse_bytes": 170424
+          },
+          {
+            "status": "optimal",
+            "compile_seconds": 0.00229179096641019,
+            "solve_wall_seconds": 0.005912124994210899,
+            "compile_plus_solve_seconds": 0.008203915960621089,
+            "solver_reported_seconds": 0.005022666,
+            "iterations": 625,
+            "objective": 0.0831038553749021,
+            "holding_constraint_violation": 2.220446049250313e-16,
+            "P": {
+              "shape": [
+                100,
+                100
+              ],
+              "nnz": 10000,
+              "bytes": 160808
+            },
+            "A": {
+              "shape": [
+                1,
+                100
+              ],
+              "nnz": 100,
+              "bytes": 2408
+            },
+            "F": {
+              "shape": [
+                202,
+                100
+              ],
+              "nnz": 400,
+              "bytes": 7208
+            },
+            "canonical_sparse_bytes": 170424
+          },
+          {
+            "status": "optimal",
+            "compile_seconds": 0.002395666961092502,
+            "solve_wall_seconds": 0.005806583969388157,
+            "compile_plus_solve_seconds": 0.008202250930480659,
+            "solver_reported_seconds": 0.005001374,
+            "iterations": 625,
+            "objective": 0.0831038553749021,
+            "holding_constraint_violation": 2.220446049250313e-16,
+            "P": {
+              "shape": [
+                100,
+                100
+              ],
+              "nnz": 10000,
+              "bytes": 160808
+            },
+            "A": {
+              "shape": [
+                1,
+                100
+              ],
+              "nnz": 100,
+              "bytes": 2408
+            },
+            "F": {
+              "shape": [
+                202,
+                100
+              ],
+              "nnz": 400,
+              "bytes": 7208
+            },
+            "canonical_sparse_bytes": 170424
+          }
+        ],
+        "adjusted_structured": [
+          {
+            "status": "optimal",
+            "compile_seconds": 0.0030864999862387776,
+            "solve_wall_seconds": 0.020501375023741275,
+            "compile_plus_solve_seconds": 0.023587875009980053,
+            "solver_reported_seconds": 0.019714582,
+            "iterations": 2750,
+            "objective": 0.0831038553699795,
+            "holding_constraint_violation": 3.6481928589182644e-13,
+            "P": {
+              "shape": [
+                241,
+                241
+              ],
+              "nnz": 140,
+              "bytes": 4176
+            },
+            "A": {
+              "shape": [
+                142,
+                241
+              ],
+              "nnz": 4541,
+              "bytes": 74592
+            },
+            "F": {
+              "shape": [
+                202,
+                241
+              ],
+              "nnz": 400,
+              "bytes": 8336
+            },
+            "canonical_sparse_bytes": 87104
+          },
+          {
+            "status": "optimal",
+            "compile_seconds": 0.0028566669789142907,
+            "solve_wall_seconds": 0.020499125006608665,
+            "compile_plus_solve_seconds": 0.023355791985522956,
+            "solver_reported_seconds": 0.019730999,
+            "iterations": 2750,
+            "objective": 0.0831038553699795,
+            "holding_constraint_violation": 3.6481928589182644e-13,
+            "P": {
+              "shape": [
+                241,
+                241
+              ],
+              "nnz": 140,
+              "bytes": 4176
+            },
+            "A": {
+              "shape": [
+                142,
+                241
+              ],
+              "nnz": 4541,
+              "bytes": 74592
+            },
+            "F": {
+              "shape": [
+                202,
+                241
+              ],
+              "nnz": 400,
+              "bytes": 8336
+            },
+            "canonical_sparse_bytes": 87104
+          },
+          {
+            "status": "optimal",
+            "compile_seconds": 0.0030704999808222055,
+            "solve_wall_seconds": 0.02042245800839737,
+            "compile_plus_solve_seconds": 0.023492957989219576,
+            "solver_reported_seconds": 0.019604458,
+            "iterations": 2750,
+            "objective": 0.0831038553699795,
+            "holding_constraint_violation": 3.6481928589182644e-13,
+            "P": {
+              "shape": [
+                241,
+                241
+              ],
+              "nnz": 140,
+              "bytes": 4176
+            },
+            "A": {
+              "shape": [
+                142,
+                241
+              ],
+              "nnz": 4541,
+              "bytes": 74592
+            },
+            "F": {
+              "shape": [
+                202,
+                241
+              ],
+              "nnz": 400,
+              "bytes": 8336
+            },
+            "canonical_sparse_bytes": 87104
+          }
+        ]
+      }
+    },
+    {
+      "n_assets": 300,
+      "n_factors": 40,
+      "repeats": 3,
+      "structured_prepare_seconds": 0.00029091595206409693,
+      "dense_export_seconds": 0.000592833966948092,
+      "structured_stored_array_bytes": 110400,
+      "dense_stored_array_bytes": 720000,
+      "negative_beta_before": 64,
+      "beta_floor_after": 0.15000000000006236,
+      "dense_structured_max_weight_error": 5.552147283593989e-13,
+      "dense_structured_max_objective_error": 1.9807072648703183e-14,
+      "medians": {
+        "original_factor": {
+          "compile_seconds": 0.003687040996737778,
+          "solve_wall_seconds": 0.028398709022440016,
+          "compile_plus_solve_seconds": 0.032085750019177794,
+          "solver_reported_seconds": 0.027582623999999997,
+          "iterations": 2050.0,
+          "canonical_sparse_bytes": 230264.0
+        },
+        "adjusted_dense": {
+          "compile_seconds": 0.008692125033121556,
+          "solve_wall_seconds": 0.01663866697344929,
+          "compile_plus_solve_seconds": 0.025330792006570846,
+          "solver_reported_seconds": 0.015208540000000001,
+          "iterations": 175.0,
+          "canonical_sparse_bytes": 1471224.0
+        },
+        "adjusted_structured": {
+          "compile_seconds": 0.004020499996840954,
+          "solve_wall_seconds": 0.026432165992446244,
+          "compile_plus_solve_seconds": 0.03041795897297561,
+          "solver_reported_seconds": 0.025534499,
+          "iterations": 1275.0,
+          "canonical_sparse_bytes": 256704.0
+        }
+      },
+      "runs": {
+        "original_factor": [
+          {
+            "status": "optimal",
+            "compile_seconds": 0.003714499995112419,
+            "solve_wall_seconds": 0.02884379104943946,
+            "compile_plus_solve_seconds": 0.03255829104455188,
+            "solver_reported_seconds": 0.027676873999999997,
+            "iterations": 2050,
+            "objective": -0.014194329101921805,
+            "holding_constraint_violation": 1.0408340855860843e-17,
+            "P": {
+              "shape": [
+                340,
+                340
+              ],
+              "nnz": 340,
+              "bytes": 8168
+            },
+            "A": {
+              "shape": [
+                41,
+                340
+              ],
+              "nnz": 12340,
+              "bytes": 200168
+            },
+            "F": {
+              "shape": [
+                602,
+                340
+              ],
+              "nnz": 1200,
+              "bytes": 21928
+            },
+            "canonical_sparse_bytes": 230264
+          },
+          {
+            "status": "optimal",
+            "compile_seconds": 0.003487874986603856,
+            "solve_wall_seconds": 0.028371207998134196,
+            "compile_plus_solve_seconds": 0.03185908298473805,
+            "solver_reported_seconds": 0.027468082999999997,
+            "iterations": 2050,
+            "objective": -0.014194329101921805,
+            "holding_constraint_violation": 1.0408340855860843e-17,
+            "P": {
+              "shape": [
+                340,
+                340
+              ],
+              "nnz": 340,
+              "bytes": 8168
+            },
+            "A": {
+              "shape": [
+                41,
+                340
+              ],
+              "nnz": 12340,
+              "bytes": 200168
+            },
+            "F": {
+              "shape": [
+                602,
+                340
+              ],
+              "nnz": 1200,
+              "bytes": 21928
+            },
+            "canonical_sparse_bytes": 230264
+          },
+          {
+            "status": "optimal",
+            "compile_seconds": 0.003687040996737778,
+            "solve_wall_seconds": 0.028398709022440016,
+            "compile_plus_solve_seconds": 0.032085750019177794,
+            "solver_reported_seconds": 0.027582623999999997,
+            "iterations": 2050,
+            "objective": -0.014194329101921805,
+            "holding_constraint_violation": 1.0408340855860843e-17,
+            "P": {
+              "shape": [
+                340,
+                340
+              ],
+              "nnz": 340,
+              "bytes": 8168
+            },
+            "A": {
+              "shape": [
+                41,
+                340
+              ],
+              "nnz": 12340,
+              "bytes": 200168
+            },
+            "F": {
+              "shape": [
+                602,
+                340
+              ],
+              "nnz": 1200,
+              "bytes": 21928
+            },
+            "canonical_sparse_bytes": 230264
+          }
+        ],
+        "adjusted_dense": [
+          {
+            "status": "optimal",
+            "compile_seconds": 0.00941104197409004,
+            "solve_wall_seconds": 0.016829167027026415,
+            "compile_plus_solve_seconds": 0.026240209001116455,
+            "solver_reported_seconds": 0.015239998999999999,
+            "iterations": 175,
+            "objective": 0.013466525045343961,
+            "holding_constraint_violation": 6.938893903907228e-18,
+            "P": {
+              "shape": [
+                300,
+                300
+              ],
+              "nnz": 90000,
+              "bytes": 1442408
+            },
+            "A": {
+              "shape": [
+                1,
+                300
+              ],
+              "nnz": 300,
+              "bytes": 7208
+            },
+            "F": {
+              "shape": [
+                602,
+                300
+              ],
+              "nnz": 1200,
+              "bytes": 21608
+            },
+            "canonical_sparse_bytes": 1471224
+          },
+          {
+            "status": "optimal",
+            "compile_seconds": 0.008661875035613775,
+            "solve_wall_seconds": 0.016590874991379678,
+            "compile_plus_solve_seconds": 0.025252750026993454,
+            "solver_reported_seconds": 0.015119499,
+            "iterations": 175,
+            "objective": 0.013466525045343961,
+            "holding_constraint_violation": 6.938893903907228e-18,
+            "P": {
+              "shape": [
+                300,
+                300
+              ],
+              "nnz": 90000,
+              "bytes": 1442408
+            },
+            "A": {
+              "shape": [
+                1,
+                300
+              ],
+              "nnz": 300,
+              "bytes": 7208
+            },
+            "F": {
+              "shape": [
+                602,
+                300
+              ],
+              "nnz": 1200,
+              "bytes": 21608
+            },
+            "canonical_sparse_bytes": 1471224
+          },
+          {
+            "status": "optimal",
+            "compile_seconds": 0.008692125033121556,
+            "solve_wall_seconds": 0.01663866697344929,
+            "compile_plus_solve_seconds": 0.025330792006570846,
+            "solver_reported_seconds": 0.015208540000000001,
+            "iterations": 175,
+            "objective": 0.013466525045343961,
+            "holding_constraint_violation": 6.938893903907228e-18,
+            "P": {
+              "shape": [
+                300,
+                300
+              ],
+              "nnz": 90000,
+              "bytes": 1442408
+            },
+            "A": {
+              "shape": [
+                1,
+                300
+              ],
+              "nnz": 300,
+              "bytes": 7208
+            },
+            "F": {
+              "shape": [
+                602,
+                300
+              ],
+              "nnz": 1200,
+              "bytes": 21608
+            },
+            "canonical_sparse_bytes": 1471224
+          }
+        ],
+        "adjusted_structured": [
+          {
+            "status": "optimal",
+            "compile_seconds": 0.004020499996840954,
+            "solve_wall_seconds": 0.026397458976134658,
+            "compile_plus_solve_seconds": 0.03041795897297561,
+            "solver_reported_seconds": 0.025519291,
+            "iterations": 1275,
+            "objective": 0.013466525042157024,
+            "holding_constraint_violation": 1.8962609260597674e-13,
+            "P": {
+              "shape": [
+                641,
+                641
+              ],
+              "nnz": 340,
+              "bytes": 10576
+            },
+            "A": {
+              "shape": [
+                342,
+                641
+              ],
+              "nnz": 13541,
+              "bytes": 221792
+            },
+            "F": {
+              "shape": [
+                602,
+                641
+              ],
+              "nnz": 1200,
+              "bytes": 24336
+            },
+            "canonical_sparse_bytes": 256704
+          },
+          {
+            "status": "optimal",
+            "compile_seconds": 0.00410550000378862,
+            "solve_wall_seconds": 0.026446541014593095,
+            "compile_plus_solve_seconds": 0.030552041018381715,
+            "solver_reported_seconds": 0.025585249,
+            "iterations": 1275,
+            "objective": 0.013466525042157024,
+            "holding_constraint_violation": 1.8962609260597674e-13,
+            "P": {
+              "shape": [
+                641,
+                641
+              ],
+              "nnz": 340,
+              "bytes": 10576
+            },
+            "A": {
+              "shape": [
+                342,
+                641
+              ],
+              "nnz": 13541,
+              "bytes": 221792
+            },
+            "F": {
+              "shape": [
+                602,
+                641
+              ],
+              "nnz": 1200,
+              "bytes": 24336
+            },
+            "canonical_sparse_bytes": 256704
+          },
+          {
+            "status": "optimal",
+            "compile_seconds": 0.003962415968999267,
+            "solve_wall_seconds": 0.026432165992446244,
+            "compile_plus_solve_seconds": 0.03039458196144551,
+            "solver_reported_seconds": 0.025534499,
+            "iterations": 1275,
+            "objective": 0.013466525042157024,
+            "holding_constraint_violation": 1.8962609260597674e-13,
+            "P": {
+              "shape": [
+                641,
+                641
+              ],
+              "nnz": 340,
+              "bytes": 10576
+            },
+            "A": {
+              "shape": [
+                342,
+                641
+              ],
+              "nnz": 13541,
+              "bytes": 221792
+            },
+            "F": {
+              "shape": [
+                602,
+                641
+              ],
+              "nnz": 1200,
+              "bytes": 24336
+            },
+            "canonical_sparse_bytes": 256704
+          }
+        ]
+      }
+    },
+    {
+      "n_assets": 1000,
+      "n_factors": 40,
+      "repeats": 3,
+      "structured_prepare_seconds": 0.0004290000069886446,
+      "dense_export_seconds": 0.00469037500442937,
+      "structured_stored_array_bytes": 368000,
+      "dense_stored_array_bytes": 8000000,
+      "negative_beta_before": 211,
+      "beta_floor_after": 0.1499999999999927,
+      "dense_structured_max_weight_error": 1.167927343379005e-11,
+      "dense_structured_max_objective_error": 8.410633300925952e-14,
+      "medians": {
+        "original_factor": {
+          "compile_seconds": 0.007043084013275802,
+          "solve_wall_seconds": 0.1722693329793401,
+          "compile_plus_solve_seconds": 0.17960337497061118,
+          "solver_reported_seconds": 0.17118345699999998,
+          "iterations": 4050.0,
+          "canonical_sparse_bytes": 762264.0
+        },
+        "adjusted_dense": {
+          "compile_seconds": 0.08480412501376122,
+          "solve_wall_seconds": 0.5940923750167713,
+          "compile_plus_solve_seconds": 0.6788965000305325,
+          "solver_reported_seconds": 0.585732873,
+          "iterations": 775.0,
+          "canonical_sparse_bytes": 16104024.0
+        },
+        "adjusted_structured": {
+          "compile_seconds": 0.007763708999846131,
+          "solve_wall_seconds": 0.37352325004758313,
+          "compile_plus_solve_seconds": 0.38128695904742926,
+          "solver_reported_seconds": 0.372321915,
+          "iterations": 4100.0,
+          "canonical_sparse_bytes": 850304.0
+        }
+      },
+      "runs": {
+        "original_factor": [
+          {
+            "status": "optimal",
+            "compile_seconds": 0.007334041991271079,
+            "solve_wall_seconds": 0.1722693329793401,
+            "compile_plus_solve_seconds": 0.17960337497061118,
+            "solver_reported_seconds": 0.17118345699999998,
+            "iterations": 4050,
+            "objective": -0.020484479221052163,
+            "holding_constraint_violation": 4.440892098500626e-16,
+            "P": {
+              "shape": [
+                1040,
+                1040
+              ],
+              "nnz": 1040,
+              "bytes": 24968
+            },
+            "A": {
+              "shape": [
+                41,
+                1040
+              ],
+              "nnz": 41040,
+              "bytes": 664968
+            },
+            "F": {
+              "shape": [
+                2002,
+                1040
+              ],
+              "nnz": 4000,
+              "bytes": 72328
+            },
+            "canonical_sparse_bytes": 762264
+          },
+          {
+            "status": "optimal",
+            "compile_seconds": 0.007043084013275802,
+            "solve_wall_seconds": 0.1739663750049658,
+            "compile_plus_solve_seconds": 0.18100945901824161,
+            "solver_reported_seconds": 0.172891041,
+            "iterations": 4050,
+            "objective": -0.020484479221052163,
+            "holding_constraint_violation": 4.440892098500626e-16,
+            "P": {
+              "shape": [
+                1040,
+                1040
+              ],
+              "nnz": 1040,
+              "bytes": 24968
+            },
+            "A": {
+              "shape": [
+                41,
+                1040
+              ],
+              "nnz": 41040,
+              "bytes": 664968
+            },
+            "F": {
+              "shape": [
+                2002,
+                1040
+              ],
+              "nnz": 4000,
+              "bytes": 72328
+            },
+            "canonical_sparse_bytes": 762264
+          },
+          {
+            "status": "optimal",
+            "compile_seconds": 0.006987417000345886,
+            "solve_wall_seconds": 0.17167795804562047,
+            "compile_plus_solve_seconds": 0.17866537504596636,
+            "solver_reported_seconds": 0.170645624,
+            "iterations": 4050,
+            "objective": -0.020484479221052163,
+            "holding_constraint_violation": 4.440892098500626e-16,
+            "P": {
+              "shape": [
+                1040,
+                1040
+              ],
+              "nnz": 1040,
+              "bytes": 24968
+            },
+            "A": {
+              "shape": [
+                41,
+                1040
+              ],
+              "nnz": 41040,
+              "bytes": 664968
+            },
+            "F": {
+              "shape": [
+                2002,
+                1040
+              ],
+              "nnz": 4000,
+              "bytes": 72328
+            },
+            "canonical_sparse_bytes": 762264
+          }
+        ],
+        "adjusted_dense": [
+          {
+            "status": "optimal",
+            "compile_seconds": 0.09519554197322577,
+            "solve_wall_seconds": 0.6009188329917379,
+            "compile_plus_solve_seconds": 0.6961143749649636,
+            "solver_reported_seconds": 0.592423457,
+            "iterations": 775,
+            "objective": 0.0024974617472564194,
+            "holding_constraint_violation": 1.7763568394002505e-15,
+            "P": {
+              "shape": [
+                1000,
+                1000
+              ],
+              "nnz": 1000000,
+              "bytes": 16008008
+            },
+            "A": {
+              "shape": [
+                1,
+                1000
+              ],
+              "nnz": 1000,
+              "bytes": 24008
+            },
+            "F": {
+              "shape": [
+                2002,
+                1000
+              ],
+              "nnz": 4000,
+              "bytes": 72008
+            },
+            "canonical_sparse_bytes": 16104024
+          },
+          {
+            "status": "optimal",
+            "compile_seconds": 0.08480412501376122,
+            "solve_wall_seconds": 0.5940923750167713,
+            "compile_plus_solve_seconds": 0.6788965000305325,
+            "solver_reported_seconds": 0.585732873,
+            "iterations": 775,
+            "objective": 0.0024974617472564194,
+            "holding_constraint_violation": 1.7763568394002505e-15,
+            "P": {
+              "shape": [
+                1000,
+                1000
+              ],
+              "nnz": 1000000,
+              "bytes": 16008008
+            },
+            "A": {
+              "shape": [
+                1,
+                1000
+              ],
+              "nnz": 1000,
+              "bytes": 24008
+            },
+            "F": {
+              "shape": [
+                2002,
+                1000
+              ],
+              "nnz": 4000,
+              "bytes": 72008
+            },
+            "canonical_sparse_bytes": 16104024
+          },
+          {
+            "status": "optimal",
+            "compile_seconds": 0.08359908300917596,
+            "solve_wall_seconds": 0.5935553750023246,
+            "compile_plus_solve_seconds": 0.6771544580115005,
+            "solver_reported_seconds": 0.585396249,
+            "iterations": 775,
+            "objective": 0.0024974617472564194,
+            "holding_constraint_violation": 1.7763568394002505e-15,
+            "P": {
+              "shape": [
+                1000,
+                1000
+              ],
+              "nnz": 1000000,
+              "bytes": 16008008
+            },
+            "A": {
+              "shape": [
+                1,
+                1000
+              ],
+              "nnz": 1000,
+              "bytes": 24008
+            },
+            "F": {
+              "shape": [
+                2002,
+                1000
+              ],
+              "nnz": 4000,
+              "bytes": 72008
+            },
+            "canonical_sparse_bytes": 16104024
+          }
+        ],
+        "adjusted_structured": [
+          {
+            "status": "optimal",
+            "compile_seconds": 0.007763708999846131,
+            "solve_wall_seconds": 0.37352325004758313,
+            "compile_plus_solve_seconds": 0.38128695904742926,
+            "solver_reported_seconds": 0.372321915,
+            "iterations": 4100,
+            "objective": 0.002497461652450919,
+            "holding_constraint_violation": 2.2975510383105302e-12,
+            "P": {
+              "shape": [
+                2041,
+                2041
+              ],
+              "nnz": 1040,
+              "bytes": 32976
+            },
+            "A": {
+              "shape": [
+                1042,
+                2041
+              ],
+              "nnz": 45041,
+              "bytes": 736992
+            },
+            "F": {
+              "shape": [
+                2002,
+                2041
+              ],
+              "nnz": 4000,
+              "bytes": 80336
+            },
+            "canonical_sparse_bytes": 850304
+          },
+          {
+            "status": "optimal",
+            "compile_seconds": 0.007522874977439642,
+            "solve_wall_seconds": 0.3738863329635933,
+            "compile_plus_solve_seconds": 0.38140920794103295,
+            "solver_reported_seconds": 0.372788707,
+            "iterations": 4100,
+            "objective": 0.002497461652450919,
+            "holding_constraint_violation": 2.2975510383105302e-12,
+            "P": {
+              "shape": [
+                2041,
+                2041
+              ],
+              "nnz": 1040,
+              "bytes": 32976
+            },
+            "A": {
+              "shape": [
+                1042,
+                2041
+              ],
+              "nnz": 45041,
+              "bytes": 736992
+            },
+            "F": {
+              "shape": [
+                2002,
+                2041
+              ],
+              "nnz": 4000,
+              "bytes": 80336
+            },
+            "canonical_sparse_bytes": 850304
+          },
+          {
+            "status": "optimal",
+            "compile_seconds": 0.0078002079972065985,
+            "solve_wall_seconds": 0.37178933300310746,
+            "compile_plus_solve_seconds": 0.37958954100031406,
+            "solver_reported_seconds": 0.370686707,
+            "iterations": 4100,
+            "objective": 0.002497461652450919,
+            "holding_constraint_violation": 2.2975510383105302e-12,
+            "P": {
+              "shape": [
+                2041,
+                2041
+              ],
+              "nnz": 1040,
+              "bytes": 32976
+            },
+            "A": {
+              "shape": [
+                1042,
+                2041
+              ],
+              "nnz": 45041,
+              "bytes": 736992
+            },
+            "F": {
+              "shape": [
+                2002,
+                2041
+              ],
+              "nnz": 4000,
+              "bytes": 80336
+            },
+            "canonical_sparse_bytes": 850304
+          }
+        ]
+      }
+    }
+  ]
+}

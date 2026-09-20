@@ -4,7 +4,7 @@
 
 ## 环境与运行方式
 
-本机实际版本：Python 3.14.4、NumPy 2.5.3、pytest 9.1.1；因子协方差方案另使用 CVXPY 1.9.3 和 CLARABEL 0.11.1。股票协方差方案的环境不安装 CVXPY。
+本机实际版本：Python 3.14.4、NumPy 2.5.3、pytest 9.1.1；凸优化验证使用 CVXPY 1.9.3、CLARABEL 0.11.1 和 OSQP 1.1.3。股票协方差调整本身不需要 CVXPY；本次结构化优化验证已在该目录环境启用可选的 `optimization` extra。
 
 每个子目录中运行：
 
@@ -77,7 +77,7 @@ OPENBLAS_NUM_THREADS=1 VECLIB_MAXIMUM_THREADS=1 \
 
 股票协方差方案的可行性结论依赖合法 PSD 协方差、正的市场方差、非负且合计为 1 的市场权重，以及 0 和 1 之间的下限。数学上的有解不等于任意浮点输入都能达到任意严格容差；代码在未收敛或重建检查失败时明确报错。
 
-为保持常规调用速度，股票协方差方案默认不执行完整矩阵特征值检查；验证中使用 `check_psd=True`。因子协方差方案始终检查因子 F，额外完整矩阵检查也可开启。没有自动裁剪特征值、调整权重或放宽 beta 约束。
+为保持常规调用速度，原 dense 股票协方差方案默认不执行完整矩阵特征值检查；验证中使用 `check_psd=True`。因子协方差方案始终检查因子 F，额外完整矩阵检查也可开启。原接口没有自动裁剪特征值、调整权重或放宽 beta 约束。新增结构化路径为求 F 的 PSD 平方根，允许将相对 1e-12 容差内的负特征值舍入为零，并报告分解重建误差；不接受实质不定的 F。
 
 这些测试验证公式实现、约束处理和优化器对接，不验证真实市场上的预测效果，也不保证任意后续持仓约束都可行。
 
@@ -90,3 +90,51 @@ OPENBLAS_NUM_THREADS=1 VECLIB_MAXIMUM_THREADS=1 \
 六股票示例的真实市场方差为 0.0559085，因子路径恢复值为 0.05590849999999985，权重最大误差为 7.22e-16；与 dense 路径的权重差异为 6.94e-16。实际输出见 [recovery_results.json](recovery_results.json)，运行方法与解释见 [MARKET_RECOVERY.md](MARKET_RECOVERY.md)。
 
 这是合成数据上的代数验证。当前用户确认没有本地实际模型数据，因此未声称完成真实 Barra 权重恢复。
+
+## 增补：结构化股票协方差与凸优化接口
+
+`stock_covariance/structured.py` 提供不生成 N×N 矩阵的预处理、风险、梯度、矩阵向量乘、对角线和按需导出；CVXPY helper 使用显式辅助变量避免把 rank-one 变换展开成 N×N 系数。完整集成要求见 [STRUCTURED_INTEGRATION.md](STRUCTURED_INTEGRATION.md)。
+
+结构化核心完成时的阶段回归验证共 **188 passed**（下文还有 standalone 模块增补）：
+
+| 测试范围 | 数量 | 新增验证 |
+|---|---:|---|
+| `stock_covariance/tests` | 104 | 原 51 项及新增 53 项：与 dense API 对照、36 组随机/尺度组合、风险、梯度及有限差分、子集导出、奇异模型、只读快照、非法输入和无 N×N 预处理。 |
+| `factor_covariance/tests` | 24 | 原方案回归通过，实现未修改。 |
+| 根目录 `tests` | 60 | 原市场恢复 43 项及新增 17 项：dense/structured 最优解、主动风险、换手和 beta 约束、SOC 风险上限、子集映射、Parameter 复用及 OSQP 稀疏系数结构。 |
+
+结构检查还对照了直接内联 `p + w * (delta @ p)` 的写法，验证它确实可能生成 N² 规模的系数；helper 的等式非零项保持 O(NK+N)，二次项为对角。`structured_example.py` 已实际运行并得到 optimal，其风险与导出矩阵重算结果一致。
+
+本地单线程 OSQP 测量（40 因子，每组 3 次，编译加求解中位数）结果如下，单位为毫秒：
+
+| 股票数 | 原因子风险 | 修正后 dense | 修正后 structured |
+|---:|---:|---:|---:|
+| 100 | 23.7 | 8.2 | 23.5 |
+| 300 | 32.1 | 25.3 | 30.4 |
+| 1,000 | 179.6 | 678.9 | 381.3 |
+
+结构化并非在每个规模都更快，也没有消除相对原因子模型的求解开销。1,000 股票时，存储结果数组约 0.368 MB 对 dense 的 8 MB；OSQP 的 P/A/F 稀疏数组合计约 0.850 MB 对 16.104 MB。这里没有测量进程峰值内存。dense 测速使用 `psd_wrap` 跳过已知 PSD 构造的额外验证；小规模正确性测试不跳过该识别。
+
+两种表示对应的最优持仓最大差异约 1.2e-11。完整逐次结果及求解矩阵大小见 [structured_benchmark_results.json](structured_benchmark_results.json)。生产速度还取决于实际模型条件数、因子数、求解器和组合约束，当前未有真实数据验证。
+
+已在股票协方差环境离线安装锁定的 optimization extra；从仓库根目录复现：
+
+```bash
+(cd stock_covariance && OPENBLAS_NUM_THREADS=1 VECLIB_MAXIMUM_THREADS=1 .venv/bin/python -m pytest -q)
+(cd factor_covariance && OPENBLAS_NUM_THREADS=1 VECLIB_MAXIMUM_THREADS=1 .venv/bin/python -m pytest -q)
+OPENBLAS_NUM_THREADS=1 VECLIB_MAXIMUM_THREADS=1 stock_covariance/.venv/bin/python -m pytest tests/test_market_recovery.py tests/test_structured_optimization.py -q
+OPENBLAS_NUM_THREADS=1 VECLIB_MAXIMUM_THREADS=1 stock_covariance/.venv/bin/python stock_covariance/structured_example.py
+OPENBLAS_NUM_THREADS=1 VECLIB_MAXIMUM_THREADS=1 stock_covariance/.venv/bin/python benchmark_structured.py
+```
+
+## 增补：独立包与 Trade Planner 数据接口
+
+新增根目录安装配置和 `barra_guard` 模块：标签化快照、多日期表格适配、统一权重来源、紧凑股票子集，以及结构化/显式 dense 两种 planner 适配器。根目录环境另安装 pandas 3.0.6，保留子目录独立环境。
+
+最终完整验证为 **214 passed**：根目录 86、股票协方差 104、因子协方差 24。新增 26 项测试覆盖按标签和日期对齐、输入错误、子集公式等价、普通/缩放持仓、参考目标辅助变量赋值及子集求解矩阵大小。完整市场 100 与 1,000 股票、交易股票固定 5 只时，求解器风险变量和约束非零项数量相同。
+
+使用实际参考 Trade Planner 的类运行合成对照，普通与 per_name 两种模式均 optimal，最大交易差异 6.7e-8 股，硬约束证书通过。原始输出见 [trade_planner_bridge_results.json](trade_planner_bridge_results.json)。这是实际代码接口上的合成数据验证，不是生产数据验证；参考仓库未修改。
+
+根目录项目已构建 wheel，并在 `/private/tmp` 下全新环境只安装该 wheel 和 NumPy，使用隔离导入运行成功；pandas、CVXPY 和 Trade Planner 均未安装到该隔离环境。说明核心包不依赖工作目录或原工程的隐含 import。
+
+安装、测试、参考仓库验证和后续集成的完整命令见 [TRADE_PLANNER_INTEGRATION.md](TRADE_PLANNER_INTEGRATION.md)。

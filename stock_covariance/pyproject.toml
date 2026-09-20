@@ -5,6 +5,9 @@ description = "Monotone beta floor and full covariance adjustment without a solv
 requires-python = ">=3.11"
 dependencies = ["numpy>=2.0,<3"]
 
+[project.optional-dependencies]
+optimization = ["cvxpy>=1.6,<2"]
+
 [dependency-groups]
 dev = ["pytest>=8,<10"]
 

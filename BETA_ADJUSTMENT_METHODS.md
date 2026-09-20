@@ -223,3 +223,15 @@ $$
 两种方法完成后，都应在数值容差内检查 beta 下限、$w^\top\beta^*=1$、市场方差不变，以及从新协方差重算的 beta 是否一致。排序则按所选方法的要求检查。
 
 这些调整不保证个股波动率不变，也不保证所有组合风险上升。它们保证的是模型内部的一致性，不是预测一定更准确；后续组合优化的持仓约束是否兼容，仍是另一个问题。
+
+## 5. 股票协方差方案的结构化计算
+
+令 $\delta=\beta^*-\beta$、$A=I+\delta w^\top$，可将同一个更新写为 $\Sigma^*=A\Sigma A^\top$。不需要真的生成 A 或完整的 $\Sigma^*$。
+
+将 $F=CC^\top$、$U=XC$。对组合暴露 p，令 $z=p+w(\delta^\top p)$，则修正后方差为：
+
+$$
+p^\top\Sigma^*p=\|U^\top z\|_2^2+\sum_i d_i z_i^2.
+$$
+
+其中 d 是对角 specific variance。风险计算仍然利用因子结构，并与完整矩阵结果一致。凸优化中需要显式辅助变量来避免展开成大矩阵；新增 `stock_covariance.adjust_from_factors` 和 `cvxpy_risk` 已实现该接口。完整推导、导出矩阵及下游集成顺序见 [STRUCTURED_INTEGRATION.md](STRUCTURED_INTEGRATION.md)。
