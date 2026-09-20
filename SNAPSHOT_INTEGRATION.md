@@ -26,6 +26,19 @@ X 为 N×K，F 为 K×K，d 为 N 个 specific variance（也接受 N×1 或 N×
 
 `weight_tolerance` 可在入口显式设置，并传入 recovery；它与二分求解的 `tolerance=1e-12` 分开，后者不变。独立调用 `market_recovery` 仍返回原始权重，不修正，诊断参数为 `consistency_tolerance`，默认同为 `1e-8`。`adjusted.recovery_diagnostics` 保留这些原始诊断。
 
+默认值统一定义在 `market_weights.py` 的 `DEFAULT_WEIGHT_TOLERANCE`，各入口引用同一个常数。集成时建议在已有项目的常数文件里配置，再通过参数传入；本模块无需依赖宿主项目的配置文件：
+
+```python
+from your_project.constants import BARRA_WEIGHT_TOLERANCE  # 替换为现有项目的路径和常数名
+
+adjusted = adjust_barra(
+    X, F, d, market_weights=w, predicted_beta=beta,
+    weight_tolerance=BARRA_WEIGHT_TOLERANCE,
+)
+```
+
+不传参数即使用模块默认值。直接调用 stock/factor adjustment 时也传 `weight_tolerance`；直接调用 recovery 时传 `consistency_tolerance`。不要通过运行时重赋值模块常数来修改配置：Python 函数默认参数在定义时已绑定。权重容差、beta 一致性容差、数值求解精度具有不同含义，应分别配置。
+
 恢复时要求 d 严格为正，必须包含参考市场全部成分股；重现 beta 本身不能证明恢复的是供应商实际市场。推导见 [数学说明](BETA_ADJUSTMENT_METHODS.md)。输入错误或无法满足数值容差会明确报错，不返回部分结果。
 
 ## 2. context 保存什么
