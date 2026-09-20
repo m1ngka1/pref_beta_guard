@@ -18,7 +18,7 @@ dev = ["pytest>=8,<10"]
 
 [tool.setuptools]
 packages = ["barra_guard", "stock_covariance", "factor_covariance"]
-py-modules = ["market_recovery"]
+py-modules = ["market_recovery", "market_weights"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

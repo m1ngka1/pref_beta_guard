@@ -5,6 +5,8 @@ from dataclasses import dataclass
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
 
+from market_weights import DEFAULT_WEIGHT_TOLERANCE, prepare_market_weights
+
 FloatArray = NDArray[np.float64]
 
 
@@ -23,6 +25,7 @@ class BetaCalibration:
 @dataclass(frozen=True)
 class AdjustmentResult:
     covariance: FloatArray
+    market_weights: FloatArray
     beta_before: FloatArray
     beta_target: FloatArray
     beta_after: FloatArray  # Recomputed from the returned covariance.
@@ -37,15 +40,6 @@ def _vector(value: ArrayLike, name: str) -> FloatArray:
     if array.ndim != 1 or array.size == 0 or not np.isfinite(array).all():
         raise ValueError(f"{name} must be a nonempty, finite 1-D array")
     return array
-
-
-def _weights(value: ArrayLike, n: int) -> FloatArray:
-    weights = _vector(value, "market_weights")
-    if weights.size != n or np.any(weights < 0):
-        raise ValueError("market_weights must match the assets and be nonnegative")
-    if abs(float(weights.sum()) - 1.0) > 1e-12:
-        raise ValueError("market_weights must sum to 1; weights are not normalized implicitly")
-    return weights
 
 
 def _covariance(value: ArrayLike, check_psd: bool) -> FloatArray:
@@ -67,17 +61,20 @@ def calibrate_betas(
     market_weights: ArrayLike,
     *,
     lower_bound: float = 0.15,
+    weight_tolerance: float = DEFAULT_WEIGHT_TOLERANCE,
     tolerance: float = 1e-12,
     max_iterations: int = 128,
 ) -> BetaCalibration:
     """Solve w @ maximum(lower_bound, beta - shift) == 1 by bisection.
 
     Requires long-only, fully invested market weights and original w @ beta == 1.
-    The output preserves weak ordering, including for zero-weight assets.
+    Weight errors within weight_tolerance are cleaned; beta must remain
+    consistent with the cleaned weights. The output preserves weak ordering,
+    including for zero-weight assets.
     Raises NumericalError on nonconvergence; never returns a partial iterate.
     """
     beta = _vector(beta, "beta")
-    weights = _weights(market_weights, beta.size)
+    weights, _ = prepare_market_weights(market_weights, beta.size, tolerance=weight_tolerance)
     if not np.isfinite(lower_bound) or not 0 < lower_bound < 1:
         raise ValueError("lower_bound must be strictly between 0 and 1")
     if not np.isfinite(tolerance) or tolerance <= 0:
@@ -120,6 +117,7 @@ def adjust_covariance(
     market_weights: ArrayLike,
     *,
     lower_bound: float = 0.15,
+    weight_tolerance: float = DEFAULT_WEIGHT_TOLERANCE,
     tolerance: float = 1e-12,
     max_iterations: int = 128,
     check_psd: bool = False,
@@ -128,12 +126,13 @@ def adjust_covariance(
 
     Input covariance must be PSD. check_psd=True adds an O(N^3) eigenvalue
     validation; it is off by default for trusted risk-model inputs. No PSD
-    repair, covariance-unit conversion, or weight normalization is performed.
+    repair or covariance-unit conversion is performed. Weight errors within
+    weight_tolerance are clipped/normalized before computing beta and variance.
     Matrix reconstruction costs O(N^2); each bisection iteration costs O(N).
     All inputs are left unchanged. beta_after is recomputed, not just the target.
     """
     sigma = _covariance(covariance, check_psd)
-    weights = _weights(market_weights, sigma.shape[0])
+    weights, weight_stats = prepare_market_weights(market_weights, sigma.shape[0], tolerance=weight_tolerance)
     market_covariance = sigma @ weights
     variance = float(weights @ market_covariance)
     if not np.isfinite(variance) or variance <= 0:
@@ -141,7 +140,7 @@ def adjust_covariance(
     beta = market_covariance / variance
     calibration = calibrate_betas(
         beta, weights, lower_bound=lower_bound, tolerance=tolerance,
-        max_iterations=max_iterations,
+        max_iterations=max_iterations, weight_tolerance=weight_tolerance,
     )
     delta = calibration.beta - beta
     # Expansion of s*(beta_new beta_new' - beta beta') avoids subtracting
@@ -174,8 +173,9 @@ def adjust_covariance(
             _covariance(updated, True)
         except ValueError as exc:
             raise NumericalError("updated covariance failed the PSD check") from exc
+    diagnostics.update(weight_stats)
     return AdjustmentResult(
-        covariance=updated, beta_before=beta, beta_target=calibration.beta,
+        covariance=updated, market_weights=weights, beta_before=beta, beta_target=calibration.beta,
         beta_after=realized, market_variance=variance, shift=calibration.shift,
         iterations=calibration.iterations, diagnostics=diagnostics,
     )

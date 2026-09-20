@@ -276,4 +276,4 @@ $$
 v=D^{-1}\beta-D^{-1}U(I+U^\top D^{-1}U)^{-1}U^\top D^{-1}\beta.
 $$
 
-实现解 K×K 系统，不显式计算逆，也不要求 F 可逆。`market_recovery.recover_from_factors(X, F, d, beta)` 使用该路径；`recover_from_covariance(Sigma, beta)` 是完整矩阵参考路径，也适用于相关 D。两者返回原始权重与诊断，不截负、不归一化。数值求解失败会明确报错；恢复诊断通过不代表一定满足后续入口更严格的浮点检查。
+实现解 K×K 系统，不显式计算逆，也不要求 F 可逆。`market_recovery.recover_from_factors(X, F, d, beta)` 使用该路径；`recover_from_covariance(Sigma, beta)` 是完整矩阵参考路径，也适用于相关 D。两者返回原始权重与诊断，不截负、不归一化。数值求解失败会明确报错。恢复诊断与两种调整入口采用统一的默认权重容差 1e-8：合计误差和负权重总量均不超容差时，调整入口截去微小负值并归一化，再计算 beta 和市场方差；否则拒绝。上述保持市场方差等性质针对修正后的 w。`adjust_barra` 在提供原 beta 时还复核修正后的 beta 一致性，故权重检查通过仍不保证 beta 复核通过；具体容差、诊断与调用见接入说明。

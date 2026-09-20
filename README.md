@@ -14,6 +14,8 @@ variance = portfolio_variance(risk_data, portfolio_weights)  # 下游数值计�
 
 缺少 w 时传 `market_weights=None`，用原 beta 恢复；已有 w 时 beta 可省略。X、F、d 及向量必须已按同一股票/因子顺序对齐，d 是方差。完整用法见 [接入说明](SNAPSHOT_INTEGRATION.md)，数学依据见 [推导](BETA_ADJUSTMENT_METHODS.md)。
 
+已有或反推的 w 使用统一的 `weight_tolerance=1e-8`：合计误差与负权重总量均在容差内时截负、归一化，超出则报错。修正幅度记录在 `adjusted.diagnostics`；提供原 beta 时仍检查修正后的模型一致性。
+
 输出不是 CVXPY 对象，不要求下游使用特定 solver。需要完整 Σ* 时调用 `covariance_matrix(risk_data)`。独立的 `barra_guard/cvxpy_adapter.py` 仅是可选的表达式构建函数；不用 CVXPY 就无需使用或迁移该文件。
 
 ## 文件结构
@@ -24,6 +26,7 @@ variance = portfolio_variance(risk_data, portfolio_weights)  # 下游数值计�
 | `stock_covariance/` | 推荐的股票协方差修正；二分法、结构化风险与 dense 参考实现。 |
 | `factor_covariance/` | 保持 X、D 不变，只修改 F 的备选方法；需要 CVXPY，可能无解。 |
 | `market_recovery.py` | 从原 beta 和风险模型恢复市场权重。 |
+| `market_weights.py` | 共用权重容差、检查与微小误差修正。 |
 | `tests/` | 所有数学、输入边界和下游优化测试。 |
 | `examples/standalone_barra.py` | 纯 NumPy 示例：预处理、保存数据、下游风险计算。 |
 

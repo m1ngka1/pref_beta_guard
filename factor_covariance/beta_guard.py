@@ -7,6 +7,8 @@ import cvxpy as cp
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
 
+from market_weights import DEFAULT_WEIGHT_TOLERANCE, prepare_market_weights
+
 FloatArray = NDArray[np.float64]
 
 
@@ -22,6 +24,7 @@ class SolverFailureError(RuntimeError):
 class AdjustmentResult:
     factor_covariance: FloatArray
     covariance: FloatArray
+    market_weights: FloatArray
     beta_before: FloatArray
     beta_target: FloatArray
     beta_after: FloatArray
@@ -54,6 +57,7 @@ def adjust_factor_covariance(
     market_weights: ArrayLike,
     *,
     lower_bound: float = 0.15,
+    weight_tolerance: float = DEFAULT_WEIGHT_TOLERANCE,
     objective_weights: ArrayLike | None = None,
     preserve_order: bool = False,
     pin_negative: bool = False,
@@ -68,6 +72,8 @@ def adjust_factor_covariance(
     or a full NxN PSD matrix. objective_weights is the positive diagonal of W.
     preserve_order adds monotonicity constraints and keeps exact beta ties tied.
     pin_negative fixes all originally negative betas at lower_bound.
+    Weight errors within weight_tolerance are clipped/normalized before
+    computing beta and market variance; larger errors are rejected.
 
     F is always PSD-checked (factor dimension). check_psd=True additionally
     checks dense D and the final stock covariance, which can cost O(N^3).
@@ -93,10 +99,7 @@ def adjust_factor_covariance(
         D = _symmetric(specific, "specific_covariance", check_psd)
         if D.shape != (n, n):
             raise ValueError("specific_covariance shape does not match loadings")
-    w = np.asarray(market_weights, dtype=float)
-    if (w.shape != (n,) or not np.isfinite(w).all() or np.any(w < 0)
-            or abs(float(w.sum()) - 1.0) > 1e-12):
-        raise ValueError("market_weights must be a finite nonnegative N-vector summing to 1")
+    w, weight_stats = prepare_market_weights(market_weights, n, tolerance=weight_tolerance)
     if not np.isfinite(lower_bound) or not 0 < lower_bound < 1:
         raise ValueError("lower_bound must be strictly between 0 and 1")
     if not np.isfinite(feasibility_tolerance) or feasibility_tolerance <= 0:
@@ -209,8 +212,9 @@ def adjust_factor_covariance(
             _symmetric(sigma_new, "updated covariance", True)
         except ValueError as exc:
             raise SolverFailureError("updated stock covariance failed the PSD check") from exc
+    diagnostics.update(weight_stats)
     return AdjustmentResult(
-        factor_covariance=F_new, covariance=sigma_new, beta_before=beta,
+        factor_covariance=F_new, covariance=sigma_new, market_weights=w, beta_before=beta,
         beta_target=target_beta, beta_after=realized, h=h_value,
         market_variance=s, market_factor_variance=t, status=status,
         objective_value=float(0.5 * np.sum(penalty * (X @ h_value) ** 2)),

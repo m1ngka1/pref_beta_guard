@@ -110,7 +110,7 @@ def test_invalid_model(case):
     elif case == 'negative_d':
         d[0] = -0.1
     elif case == 'negative_w':
-        w[0], w[1] = -1e-15, 1e-15
+        w[0], w[1] = -2e-8, 2e-8
     elif case == 'budget':
         w *= .9
     elif case == 'nonfinite':

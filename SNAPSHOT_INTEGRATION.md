@@ -20,7 +20,13 @@ adjusted = adjust_barra(
 
 X 为 N×K，F 为 K×K，d 为 N 个 specific variance（也接受 N×1 或 N×N 对角矩阵）。w、beta 为 N 或 N×1。**没有时间维度**；对角元素必须是方差，不是波动率。若 loader 返回 DataFrame/Series，在原数据层按一致顺序 `.reindex(...)` 后转成 NumPy；此模块不再重复实现表格对齐。
 
-有 w 就直接使用；缺 w 时从 X/F/d/beta 恢复。两者都有时会检查原 beta 与模型是否一致。权重必须非负且合计为 1，不自动截负或归一化；恢复时要求 d 严格为正，必须包含参考市场全部成分股；重现 beta 本身不能证明恢复的是供应商实际市场。诊断容差为 1e-8，但调整入口要求 w 严格非负、合计误差不超过 1e-12，所以微小负权重也可能被拒绝；不会静默修正。推导见 [数学说明](BETA_ADJUSTMENT_METHODS.md)。输入错误或无法满足数值容差会明确报错，不返回部分结果。
+有 w 就使用它；缺 w 时从 X/F/d/beta 恢复。两条路径以及独立的 stock/factor adjustment 入口共用 `weight_tolerance=1e-8`。先检查原始权重的合计误差 `abs(sum(w)-1)` 和**负权重绝对值的总和**，两者都不超过容差才将负值设为零、再除以修正后合计；超出就报错，不会修复实质性的多空组合或不完整市场。输入数组不被修改；结果的 `market_weights` 是计算实际采用的权重。
+
+修正记录在 `adjusted.diagnostics` 的 `input_weight_sum`、`input_full_investment_error`、`input_minimum_weight`、`input_negative_weight_mass`、`weight_correction_l1` 和 `weight_correction_max`。只要提供了原 beta（包括反推路径），修正后的权重仍须满足 `max(abs(beta_recomputed-beta)) <= beta_consistency_tolerance * max(1, max(abs(beta)))`，默认 beta 容差为 `1e-8`；失败则报错，误差通过时记录为 `input_beta_consistency_max_error`。权重变化小不保证 beta 变化小，所以这项复核独立保留。没有提供 beta 时，直接由模型和修正后的权重计算 beta。市场方差不变等性质均相对于这组修正后的权重定义。
+
+`weight_tolerance` 可在入口显式设置，并传入 recovery；它与二分求解的 `tolerance=1e-12` 分开，后者不变。独立调用 `market_recovery` 仍返回原始权重，不修正，诊断参数为 `consistency_tolerance`，默认同为 `1e-8`。`adjusted.recovery_diagnostics` 保留这些原始诊断。
+
+恢复时要求 d 严格为正，必须包含参考市场全部成分股；重现 beta 本身不能证明恢复的是供应商实际市场。推导见 [数学说明](BETA_ADJUSTMENT_METHODS.md)。输入错误或无法满足数值容差会明确报错，不返回部分结果。
 
 ## 2. context 保存什么
 
@@ -104,8 +110,9 @@ constraints.extend(risk_constraints)  # 必须全部加入
 | `barra_guard/_validation.py` | 共用的数组和标签检查。 |
 | `stock_covariance/beta_guard.py`、`structured.py` | 二分校准和结构化协方差数学核心。 |
 | `market_recovery.py` | 缺少 w 时的求解。 |
+| `market_weights.py` | recovery 与两种 adjustment 共用的权重检查、容差和微小修正。 |
 
-直接迁移时一起带走 `barra_guard/`（不用 CVXPY 可排除 `cvxpy_adapter.py`）、`stock_covariance/` 的 Python 文件及 `market_recovery.py`；保留包内相对导入，也可安装根目录包。没有 pandas、Trade Planner 或日期管线依赖；仅计算调整和数值风险只需 NumPy，调用 CVXPY 接口时才需要 CVXPY。
+直接迁移时一起带走 `barra_guard/`（不用 CVXPY 可排除 `cvxpy_adapter.py`）、`stock_covariance/` 的 Python 文件及 `market_recovery.py`、`market_weights.py`；保留包内相对导入，也可安装根目录包。没有 pandas、Trade Planner 或日期管线依赖；仅计算调整和数值风险只需 NumPy，调用 CVXPY 接口时才需要 CVXPY。
 
 可选的因子协方差方案单独位于 `factor_covariance/`，只有选择该方法时才需迁移；根目录安装包已包含两种方案。所有测试在 `tests/`，只维护根目录一份配置和锁文件。
 

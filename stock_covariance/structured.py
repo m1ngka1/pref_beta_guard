@@ -9,7 +9,8 @@ from dataclasses import dataclass
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
 
-from .beta_guard import NumericalError, _covariance, _weights, calibrate_betas
+from market_weights import DEFAULT_WEIGHT_TOLERANCE, prepare_market_weights
+from .beta_guard import NumericalError, _covariance, calibrate_betas
 
 FloatArray = NDArray[np.float64]
 
@@ -129,6 +130,7 @@ def adjust_from_factors(
     market_weights: ArrayLike,
     *,
     lower_bound: float = 0.15,
+    weight_tolerance: float = DEFAULT_WEIGHT_TOLERANCE,
     tolerance: float = 1e-12,
     max_iterations: int = 128,
 ) -> StructuredCovariance:
@@ -136,7 +138,8 @@ def adjust_from_factors(
 
     X is NxK, F is PSD KxK, D is a nonnegative variance vector or diagonal
     NxN matrix. Dense correlated D must use the legacy dense API. w accepts
-    (N,) or (N,1), must be long-only and sum to one; no implicit normalization.
+    (N,) or (N,1); weight errors within weight_tolerance are clipped/normalized
+    before computing beta and market variance. Larger errors are rejected.
 
     Preparation O(N*K^2 + K^3 + N*iterations), storage O(N*K + K^2).
     Checking an input NxN D also costs O(N^2); pass its vector to avoid this.
@@ -165,7 +168,7 @@ def adjust_from_factors(
         d = _vector(D, n, "specific variances")
     if not np.isfinite(d).all() or np.any(d < 0):
         raise ValueError("specific variances must be finite and nonnegative (not volatilities)")
-    w = _weights(_vector(market_weights, n, "market_weights"), n)
+    w, weight_stats = prepare_market_weights(market_weights, n, tolerance=weight_tolerance)
 
     base_market_covariance = U @ (U.T @ w) + d * w
     s = float(w @ base_market_covariance)
@@ -174,6 +177,7 @@ def adjust_from_factors(
     beta = base_market_covariance / s
     calibration = calibrate_betas(
         beta, w, lower_bound=lower_bound, tolerance=tolerance, max_iterations=max_iterations,
+        weight_tolerance=weight_tolerance,
     )
     delta = calibration.beta - beta
     z_market = w + w * float(delta @ w)
@@ -196,6 +200,7 @@ def adjust_from_factors(
             or diagnostics["beta_reconstruction_max_error"] > verification_tol * max(1, np.max(np.abs(calibration.beta)))
             or diagnostics["floor_violation"] > verification_tol):
         raise NumericalError(f"structured reconstruction failed: {diagnostics}")
+    diagnostics.update(weight_stats)
     return StructuredCovariance(
         factor_risk_loadings=_readonly(U), specific_variances=_readonly(d),
         market_weights=_readonly(w), beta_before=_readonly(beta),

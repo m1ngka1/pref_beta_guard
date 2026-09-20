@@ -11,6 +11,8 @@ from typing import Callable
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
 
+from market_weights import DEFAULT_WEIGHT_TOLERANCE, validate_weight_tolerance, weight_diagnostics
+
 FloatArray = NDArray[np.float64]
 
 
@@ -62,11 +64,6 @@ def _symmetric(value: ArrayLike, name: str) -> tuple[FloatArray, float]:
     return 0.5 * matrix + 0.5 * matrix.T, scale
 
 
-def _tolerance(value: float) -> None:
-    if not np.isfinite(value) or value <= 0:
-        raise ValueError("consistency_tolerance must be finite and positive")
-
-
 def _summarize(
     beta: FloatArray,
     v: FloatArray,
@@ -99,13 +96,9 @@ def _summarize(
             f"beta={beta_error:.3g}, variance={variance_error:.3g}"
         )
 
-    budget_error = abs(float(weights.sum()) - 1.0)
-    negative_mass = float(-np.minimum(weights, 0).sum())
+    stats = weight_diagnostics(weights)
     diagnostics = {
-        "weight_sum": float(weights.sum()),
-        "full_investment_error": budget_error,
-        "minimum_weight": float(weights.min()),
-        "negative_weight_mass": negative_mass,
+        **stats,
         "market_weighted_beta": float(weights @ beta),
         "linear_solve_relative_residual": solve_error,
         "beta_reconstruction_max_error": beta_error,
@@ -113,8 +106,8 @@ def _summarize(
     }
     return MarketRecovery(
         weights=weights, market_variance=variance, beta_recomputed=beta_recomputed,
-        full_investment_consistent=budget_error <= consistency_tolerance,
-        long_only_consistent=negative_mass <= consistency_tolerance,
+        full_investment_consistent=stats["full_investment_error"] <= consistency_tolerance,
+        long_only_consistent=stats["negative_weight_mass"] <= consistency_tolerance,
         diagnostics=diagnostics, method=method,
     )
 
@@ -123,7 +116,7 @@ def recover_from_covariance(
     covariance: ArrayLike,
     predicted_beta: ArrayLike,
     *,
-    consistency_tolerance: float = 1e-8,
+    consistency_tolerance: float = DEFAULT_WEIGHT_TOLERANCE,
 ) -> MarketRecovery:
     """Solve Sigma v = beta, then s = 1/(beta.T v), w = s*v.
 
@@ -134,7 +127,7 @@ def recover_from_covariance(
 
     Dense reference path: O(N^3) arithmetic, O(N^2) memory.
     """
-    _tolerance(consistency_tolerance)
+    validate_weight_tolerance(consistency_tolerance)
     sigma, scale = _symmetric(covariance, "covariance")
     beta = _beta(predicted_beta, sigma.shape[0])
     try:
@@ -155,7 +148,7 @@ def recover_from_factors(
     specific_covariance: ArrayLike,
     predicted_beta: ArrayLike,
     *,
-    consistency_tolerance: float = 1e-8,
+    consistency_tolerance: float = DEFAULT_WEIGHT_TOLERANCE,
 ) -> MarketRecovery:
     """Recover w,s from X,F,diagonal D,beta without materializing Sigma.
 
@@ -170,7 +163,7 @@ def recover_from_factors(
     Cost O(N*K^2 + K^3); additional memory O(N*K + K^2). An input NxN D
     also requires an O(N^2) diagonal-structure check; an N-vector avoids it.
     """
-    _tolerance(consistency_tolerance)
+    validate_weight_tolerance(consistency_tolerance)
     X = np.asarray(loadings, dtype=float)
     if X.ndim != 2 or min(X.shape) == 0 or not np.isfinite(X).all():
         raise ValueError("loadings must be a nonempty finite NxK matrix")
