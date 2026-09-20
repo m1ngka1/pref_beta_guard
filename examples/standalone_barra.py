@@ -1,9 +1,8 @@
-"""Run from installed package: python examples/standalone_barra.py."""
+"""Raw inputs -> numeric context -> risk. Requires only NumPy, no solver."""
 
-import cvxpy as cp
 import numpy as np
 
-from barra_guard import adjust_barra
+from barra_guard import adjust_barra, covariance_matrix, portfolio_variance, risk_arrays
 
 
 adjusted = adjust_barra(
@@ -12,15 +11,18 @@ adjusted = adjust_barra(
     factor_covariance=np.diag([.0004, .0001]), specific_variance=np.full(4, .0002),
     market_weights=np.full(4, .25),
 )
-view = adjusted.for_symbols(['C', 'A', 'B'])  # Full-market calibration; chosen output order.
-p = cp.Variable(3)
-block = view.cvxpy_risk(p)
-problem = cp.Problem(cp.Minimize(block.variance), [p >= 0, cp.sum(p) == 1, *block.constraints])
-problem.solve(solver='CLARABEL')
-if problem.status != cp.OPTIMAL:
-    raise RuntimeError(problem.status)
-np.testing.assert_allclose(block.variance.value, p.value @ view.to_dense() @ p.value, atol=1e-10)
-print('symbols:', view.symbols)
-print('beta*:', view.predicted_beta)
-print('weights:', p.value)
-print('variance:', view.variance(p.value))
+view = adjusted.for_symbols(['C', 'A', 'B'])
+context = {
+    'symbols': view.symbols,
+    'predicted_beta': view.predicted_beta.copy(),
+    'adjusted_risk': risk_arrays(view),
+}
+del view, adjusted  # Downstream needs only numeric information in context.
+
+p = np.array([.2, .3, .5])  # Future portfolio weights, in context symbol order.
+variance = portfolio_variance(context['adjusted_risk'], p)
+Sigma_star = covariance_matrix(context['adjusted_risk'])  # Optional matrix export.
+np.testing.assert_allclose(variance, p @ Sigma_star @ p, atol=1e-12)
+print('symbols:', context['symbols'])
+print('beta*:', context['predicted_beta'])
+print('variance:', variance)

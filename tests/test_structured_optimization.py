@@ -4,6 +4,8 @@ import pytest
 from scipy import sparse
 
 from stock_covariance import adjust_from_factors
+from barra_guard import risk_arrays
+from barra_guard.cvxpy_adapter import risk_expression
 
 
 def model_input(seed=0, n=30, k=4):
@@ -30,9 +32,8 @@ def test_same_constrained_optimizer(seed, active):
                        model.beta_after @ p >= .4, model.beta_after @ p <= 1.2,
                        cp.norm1(p - previous) <= .8]
         if structured:
-            block = model.cvxpy_risk(p - benchmark)
-            variance = block.variance
-            constraints.extend(block.constraints)
+            variance, risk_constraints = risk_expression(risk_arrays(model), p - benchmark)
+            constraints.extend(risk_constraints)
         else:
             variance = cp.quad_form(p - benchmark, model.to_dense())
         problem = cp.Problem(cp.Minimize(3 * variance - alpha @ p), constraints)
@@ -49,9 +50,9 @@ def test_soc_risk_limit_and_column_vector():
     n = model.n_assets
     p = cp.Variable((n, 1))
     b = np.full((n, 1), 1/n)
-    block = model.cvxpy_risk(p - b)
+    volatility, risk_constraints = risk_expression(risk_arrays(model), p - b, volatility=True)
     problem = cp.Problem(cp.Maximize(np.linspace(0, .02, n) @ p[:, 0]),
-                         [p >= 0, cp.sum(p) == 1, block.volatility <= .08, *block.constraints])
+                         [p >= 0, cp.sum(p) == 1, volatility <= .08, *risk_constraints])
     problem.solve(solver='CLARABEL')
     assert problem.status == cp.OPTIMAL
     assert np.sqrt(model.variance(p.value - b)) <= .08 + 1e-7
@@ -63,15 +64,15 @@ def test_subset_scatter_and_parameter_reuse():
     E = sparse.csc_matrix((np.ones(5), (idx, np.arange(5))), shape=(model.n_assets, 5))
     p = cp.Variable(5)
     alpha = cp.Parameter(5)
-    block = model.cvxpy_risk(E @ p)
-    problem = cp.Problem(cp.Minimize(block.variance - alpha @ p),
-                         [cp.sum(p) == 1, p >= 0, *block.constraints])
+    variance, risk_constraints = risk_expression(risk_arrays(model), E @ p)
+    problem = cp.Problem(cp.Minimize(variance - alpha @ p),
+                         [cp.sum(p) == 1, p >= 0, *risk_constraints])
     assert problem.is_dpp()
     for values in [np.zeros(5), np.linspace(0, .02, 5)]:
         alpha.value = values
         problem.solve(solver='OSQP', eps_abs=1e-9, eps_rel=1e-9)
         assert problem.status == cp.OPTIMAL
-        np.testing.assert_allclose(block.variance.value, p.value @ model.to_dense(idx) @ p.value, atol=1e-9)
+        np.testing.assert_allclose(variance.value, p.value @ model.to_dense(idx) @ p.value, atol=1e-9)
 
 
 def test_solver_matrices_keep_sparse_structure():
@@ -79,8 +80,8 @@ def test_solver_matrices_keep_sparse_structure():
     model = adjust_from_factors(*model_input(n=n, k=k))
     assert np.any(model.delta)
     p = cp.Variable(n)
-    block = model.cvxpy_risk(p)
-    problem = cp.Problem(cp.Minimize(block.variance), [cp.sum(p) == 1, p >= 0, *block.constraints])
+    variance, risk_constraints = risk_expression(risk_arrays(model), p)
+    problem = cp.Problem(cp.Minimize(variance), [cp.sum(p) == 1, p >= 0, *risk_constraints])
     data, _, _ = problem.get_problem_data(cp.OSQP)
     P, A = data['P'], data['A']
     assert (P - sparse.diags(P.diagonal())).nnz == 0
@@ -99,14 +100,14 @@ def test_solver_matrices_keep_sparse_structure():
 def test_noop_skips_transform_variables():
     model = adjust_from_factors(np.ones((5, 1)), np.ones((1, 1)), np.ones(5), np.full(5, .2))
     p = cp.Variable(5)
-    block = model.cvxpy_risk(p)
-    assert block.transformed_exposure is p
-    assert len(block.constraints) == 1
+    variance, risk_constraints = risk_expression(risk_arrays(model), p)
+    assert len(variance.variables()) == 2  # Only p and factor scores.
+    assert len(risk_constraints) == 1
 
 
 def test_reject_nonaffine_and_wrong_size():
     model = adjust_from_factors(*model_input())
     with pytest.raises(ValueError):
-        model.cvxpy_risk(cp.square(cp.Variable(model.n_assets)))
+        risk_expression(risk_arrays(model), cp.square(cp.Variable(model.n_assets)))
     with pytest.raises(ValueError):
-        model.cvxpy_risk(cp.Variable(model.n_assets - 1))
+        risk_expression(risk_arrays(model), cp.Variable(model.n_assets - 1))

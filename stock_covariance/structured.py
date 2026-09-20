@@ -1,11 +1,10 @@
-"""Matrix-free stock beta adjustment and explicitly lifted CVXPY risk.
+"""Matrix-free stock beta adjustment and numeric risk calculations.
 
-NumPy-only until cvxpy_risk() is called. Keep the dense beta_guard API as a
+Pure NumPy; no solver objects or solver imports. Keep the dense beta_guard API as a
 reference/backward-compatible path. No NxN matrix is built except in to_dense().
 """
 
 from dataclasses import dataclass
-from typing import Any
 
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
@@ -28,18 +27,6 @@ def _readonly(value: FloatArray) -> FloatArray:
     snapshot = np.array(value, dtype=float, copy=True)
     snapshot.flags.writeable = False
     return snapshot
-
-
-@dataclass(frozen=True)
-class CvxpyRisk:
-    """variance is valid ONLY together with all returned constraints."""
-
-    variance: Any
-    volatility: Any
-    constraints: tuple[Any, ...]
-    transformed_exposure: Any
-    factor_scores: Any
-    shift_exposure: Any
 
 
 @dataclass(frozen=True)
@@ -133,38 +120,6 @@ class StructuredCovariance:
             np.outer(beta, delta) + np.outer(delta, beta) + np.outer(delta, delta)
         )
         return 0.5 * result + 0.5 * result.T
-
-    def cvxpy_risk(self, exposure: Any, *, name: str = "beta_guard") -> CvxpyRisk:
-        """Lift risk into sparse linear constraints + a diagonal quadratic form.
-
-        IMPORTANT: add every returned constraint to the caller's problem.
-        exposure must be affine and in full-universe order; it can be p or
-        p-benchmark. All actual holdings constraints remain on p, never on z.
-
-        Explicit scalar t and vector z avoid CVXPY expanding w*(delta@p) into
-        an NxN coefficient matrix. For zero delta, omit t and z entirely.
-        """
-        try:
-            import cvxpy as cp
-        except ImportError as exc:
-            raise ImportError("cvxpy_risk requires CVXPY; install the optimization extra") from exc
-        p = cp.Expression.cast_to_const(exposure)
-        if p.shape == (self.n_assets, 1):
-            p = cp.reshape(p, (self.n_assets,), order="F")
-        if p.shape != (self.n_assets,) or not p.is_affine():
-            raise ValueError("exposure must be an affine CVXPY N-vector or Nx1 column")
-        constraints = []
-        if np.any(self.delta != 0):
-            t = cp.Variable(name=f"{name}_shift")
-            z = cp.Variable(self.n_assets, name=f"{name}_transformed")
-            constraints.extend([t == self.delta @ p, z == p + self.market_weights * t])
-        else:
-            t, z = cp.Constant(0.0), p
-        y = cp.Variable(self.n_factors, name=f"{name}_factors")
-        constraints.append(y == self.factor_risk_loadings.T @ z)
-        variance = cp.sum_squares(y) + cp.sum(cp.multiply(self.specific_variances, cp.square(z)))
-        volatility = cp.norm(cp.hstack([y, cp.multiply(np.sqrt(self.specific_variances), z)]), 2)
-        return CvxpyRisk(variance, volatility, tuple(constraints), z, y, t)
 
 
 def adjust_from_factors(

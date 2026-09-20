@@ -7,7 +7,7 @@
 在现有 loader 完成股票、因子、日期口径和单位对齐后，在构建 context 之前调用：
 
 ```python
-from barra_guard import adjust_barra
+from barra_guard import adjust_barra, risk_arrays
 
 adjusted = adjust_barra(
     X, F, d,
@@ -27,17 +27,17 @@ X 为 N×K，F 为 K×K，d 为 N 个 specific variance（也接受 N×1 或 N×
 ```python
 # 字段名是示意，由现有工程定义；不需要替换你现有的 context 类。
 context_fields["predicted_beta"] = adjusted.predicted_beta
-context_fields["adjusted_risk"] = adjusted.risk
+context_fields["adjusted_risk"] = risk_arrays(adjusted.risk)
 ```
 
-`adjusted.risk` 是完整股票集合的结构化 Σ*。未来每天从同一个字段取用，不再调用调整函数，也不用复制 T 份 covariance。日期、币种、模型名等现有元数据继续由原工程保存。
+`risk_arrays(...)` 导出只含 NumPy 数组和浮点数的字典，表示完整股票集合的 Σ*。结果不含任何 CVXPY 对象，也不依赖原 X/F/d 对象继续存在。未来每天复用这个字典，不重新调整，也不用复制 T 份 covariance。股票顺序、日期、币种等元数据继续由原工程保存；不要拆开或单独修改这些相互关联的风险系数。
 
 如果只交易部分股票，先在完整模型上校准，再按下游股票顺序取一次视图：
 
 ```python
 risk = adjusted.for_symbols(traded_symbols)
 context_fields["predicted_beta"] = risk.predicted_beta
-context_fields["adjusted_risk"] = risk
+context_fields["adjusted_risk"] = risk_arrays(risk)
 ```
 
 这个视图精确表示完整 Σ* 的对应主子矩阵；求解器规模按交易股票数增长。不能只用当前订单股票反推市场权重，也不能对子集重新归一化市场权重。集合外若有非零固定持仓或基准暴露，应把这些股票也包括进视图。
@@ -46,53 +46,75 @@ context_fields["adjusted_risk"] = risk
 
 因子协方差方案的原接口仍在 `factor_covariance/` 中，返回修改后的 F；它可沿用原来的因子风险公式。这里的简化入口针对股票协方差方案，不会自动切换两种方法。
 
-## 3. 下游使用
+## 3. 下游使用：不依赖 solver
 
 ```python
-risk = context_fields["adjusted_risk"]
+from barra_guard import portfolio_variance, covariance_matrix
 
-# 数值风险；p 为与 risk 股票顺序一致的权重或金额暴露
-variance = risk.variance(p)
-Sigma_times_p = risk.matvec(p)
-gradient = risk.gradient(p)
-asset_variances = risk.diagonal()
-Sigma_star = risk.to_dense()  # 仅在需要完整矩阵时调用
+data = context_fields["adjusted_risk"]
+variance = portfolio_variance(data, p)   # 已知持仓的风险，纯 NumPy
+Sigma_star = covariance_matrix(data)    # 按需生成矩阵，交给任意 solver
 ```
 
-结构化 CVXPY 风险支持每天的不同持仓，但使用同一份 covariance：
+若 context 只想保存完整矩阵，预处理时直接存 `adjusted.to_dense()` 或子集 `risk.to_dense()` 即可；之后用 `p.T @ Sigma_star @ p` 计算风险。矩阵导出需要平方级存储。
+
+不生成矩阵时，字典的六个字段足以在自己的求解器中重现同一个风险：
+
+| 字段 | 含义 |
+|---|---|
+| `U` | 当前股票的风险平方根暴露，来自 F=CCᵀ、U=XC；不是原始 X。 |
+| `d` | 当前股票原 specific variance。 |
+| `w` | 当前股票对应的完整市场权重，不在子集内重新归一化。 |
+| `delta` | 当前股票的 beta 改变量 β*−β。 |
+| `h` | 完整模型 Uᵀw，长度为因子数，子集也保留这个完整市场信息。 |
+| `v_out` | 未包含股票的 Σ dᵢwᵢ²；完整股票集合时为 0。 |
+
+对当前集合的暴露 p（权重或金额），令
+
+$$
+t=\delta^\top p,\qquad z=p+wt,\qquad y=U^\top p+ht.
+$$
+
+则 **修正后方差** 是 $y^\top y+\sum_i d_i z_i^2+v_{out}t^2$。六个字段共同表示新风险；仅 U 和 d 仍不是完整的调整结果。推导见 [数学说明](BETA_ADJUSTMENT_METHODS.md)。
+
+`portfolio_variance` 处理已知数值持仓，不接收优化器变量；自己的 solver 可以按上述公式构建目标。为保留规模优势，使用显式的 t、z、y 及对应线性等式，不要把 rank-one 变换展开成 N×N 系数矩阵。优化和风险报告必须使用同一份数据。
+
+### 可选：只有下游使用 CVXPY 时
 
 ```python
-for t in range(number_of_trading_days):
-    dollars = cp.multiply(prices[t], position_shares[t])
-    block = risk.cvxpy_risk(dollars)
-    objective_terms.append(risk_weight * block.variance)
-    constraints.extend(block.constraints)  # 必须加入，否则风险与持仓脱离
+from barra_guard.cvxpy_adapter import risk_expression
+
+variance_expr, risk_constraints = risk_expression(data, position_dollars)
+objective_terms.append(risk_weight * variance_expr)
+constraints.extend(risk_constraints)  # 必须全部加入
 ```
 
-辅助等式能避免 CVXPY 将 `w * (delta @ p)` 直接展开成 N×N 系数；不要内联重写这些平方项。
+这是单独的表达式构建函数，不做求解、不设置 solver，也不修改 data；返回普通的 `(表达式, 约束列表)`，不再创建自定义 CVXPY 风险类。**不要把返回的表达式放回 context。** 未使用 CVXPY 的下游可完全忽略这个文件。
 
-这里的未来持仓/价格属于下游规划，**不是每日重新加载 Barra**。份额到金额的转换及已有数值缩放由下游掌握；这个模块只接收最终暴露，不再包一层 planner adapter。跟踪误差使用 `p - benchmark`。
-
-若只接受完整矩阵，可先将 `risk.to_dense()` 存入 context，再沿用 `cp.quad_form`。这条路径简单，但有矩阵存储成本。若下游在求解前给持仓赋值以计算参考目标，子集风险块支持 `block.set_reference_values()` 同步辅助变量；更简单的方式是用 `risk.variance(reference_exposure)` 数值计算风险。优化与报告必须使用同一份调整后风险。
+`volatility=True` 返回波动率表达式，用于支持二阶锥的求解器。若要在求解前评估参考目标，直接用 `portfolio_variance(data, reference_exposure)`，不依赖辅助变量赋值。股数到金额的转换和每天的持仓变量由你的 solver 管理。
 
 ## 4. 代码分工与迁移
 
 | 文件 | 职责 |
 |---|---|
 | `barra_guard/prepare.py` | 唯一预处理入口、权重来源选择、beta 一致性检查及返回结果。 |
-| `barra_guard/risk.py` | 可选的股票子集风险、完整矩阵导出和凸优化表达式。 |
+| `barra_guard/risk.py` | 股票子集的 NumPy 风险计算及矩阵导出。 |
+| `barra_guard/arrays.py` | 纯数值数据导出、函数式风险计算和矩阵构造。 |
+| `barra_guard/cvxpy_adapter.py` | 可选的 CVXPY 表达式构建，预处理不会导入它。 |
 | `barra_guard/_validation.py` | 共用的数组和标签检查。 |
 | `stock_covariance/beta_guard.py`、`structured.py` | 二分校准和结构化协方差数学核心。 |
 | `market_recovery.py` | 缺少 w 时的求解。 |
 
-直接迁移时一起带走 `barra_guard/`、`stock_covariance/` 的 Python 文件及 `market_recovery.py`；保留包内相对导入，也可安装根目录包。没有 pandas、Trade Planner 或日期管线依赖；仅计算调整和数值风险只需 NumPy，调用 CVXPY 接口时才需要 CVXPY。
+直接迁移时一起带走 `barra_guard/`（不用 CVXPY 可排除 `cvxpy_adapter.py`）、`stock_covariance/` 的 Python 文件及 `market_recovery.py`；保留包内相对导入，也可安装根目录包。没有 pandas、Trade Planner 或日期管线依赖；仅计算调整和数值风险只需 NumPy，调用 CVXPY 接口时才需要 CVXPY。
 
 可选的因子协方差方案单独位于 `factor_covariance/`，只有选择该方法时才需迁移；根目录安装包已包含两种方案。所有测试在 `tests/`，只维护根目录一份配置和锁文件。
 
 ```bash
-uv sync --locked --extra optimization
-uv run --locked --extra optimization python examples/standalone_barra.py
+uv sync --locked
+uv run --locked python examples/standalone_barra.py
 uv run --locked --extra optimization pytest -q
 ```
 
 结构化表示避免 N×N 风险矩阵的存储和展开，但不保证每个求解器或规模都更快；小规模 dense 可能更快。实际接入仍应对比风险、持仓约束、编译及求解耗时。推导见 [BETA_ADJUSTMENT_METHODS.md](BETA_ADJUSTMENT_METHODS.md)。
+
+从旧接口迁移：`.cvxpy_risk()` 和自定义风险块已移除；需要 CVXPY 时用独立的 `risk_expression(data, exposure)`。预处理数据类和原 NumPy 方法继续可用，它们本身不是 solver 对象。

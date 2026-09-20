@@ -234,7 +234,7 @@ $$
 p^\top\Sigma^*p=\|U^\top z\|_2^2+\sum_i d_i z_i^2.
 $$
 
-其中 d 是对角 specific variance。风险计算仍然利用因子结构，并与完整矩阵结果一致。凸优化中需要显式辅助变量来避免展开成大矩阵；新增 `stock_covariance.adjust_from_factors` 和 `cvxpy_risk` 已实现该接口。接入方式见 [SNAPSHOT_INTEGRATION.md](SNAPSHOT_INTEGRATION.md)。F 的平方根仅将相对 1e-12 容差内的负特征值舍入为零并报告误差，实质不定的 F 会报错。
+其中 d 是对角 specific variance。风险计算仍然利用因子结构，并与完整矩阵结果一致。凸优化中需要显式辅助变量来避免展开成大矩阵；新增 `stock_covariance.adjust_from_factors` 生成纯数值结果；`barra_guard.risk_arrays` 可导出独立数组，可选的 `barra_guard.cvxpy_adapter.risk_expression` 单独负责构建表达式。接入方式见 [SNAPSHOT_INTEGRATION.md](SNAPSHOT_INTEGRATION.md)。F 的平方根仅将相对 1e-12 容差内的负特征值舍入为零并报告误差，实质不定的 F 会报错。
 
 
 ### 只优化股票子集时

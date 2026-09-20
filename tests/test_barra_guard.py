@@ -2,7 +2,8 @@ import cvxpy as cp
 import numpy as np
 import pytest
 
-from barra_guard import adjust_barra
+from barra_guard import adjust_barra, portfolio_variance, risk_arrays
+from barra_guard.cvxpy_adapter import risk_expression
 
 
 def inputs(n=18, seed=2):
@@ -28,11 +29,11 @@ def test_compact_subset_is_full_principal_covariance(seed):
     np.testing.assert_allclose(view.gradient(p), 2*dense @ p, atol=1e-12)
     np.testing.assert_allclose(view.diagonal(), np.diag(dense), atol=1e-12)
     variable = cp.Variable(4)
-    block = view.cvxpy_risk(variable)
-    problem = cp.Problem(cp.Minimize(block.variance), [variable == p, *block.constraints])
+    variance, constraints = risk_expression(risk_arrays(view), variable)
+    problem = cp.Problem(cp.Minimize(variance), [variable == p, *constraints])
     problem.solve(solver='CLARABEL')
     assert problem.status == cp.OPTIMAL
-    np.testing.assert_allclose(block.variance.value, p @ dense @ p, atol=1e-10)
+    np.testing.assert_allclose(variance.value, p @ dense @ p, atol=1e-10)
     # Including only subset idiosyncratic risk would silently lose this term.
     t, z, y = view._parts(p)
     assert abs(view.variance(p) - (y@y + view.d@(z*z)) - view.outside_specific_variance*t*t) < 1e-12
@@ -61,8 +62,8 @@ def test_subset_solver_size_does_not_grow_with_full_universe():
         names = [source['symbols'][idx]] + [s for i, s in enumerate(source['symbols']) if i != idx][:4]
         view = adjusted.for_symbols(names)
         p = cp.Variable(5)
-        block = view.cvxpy_risk(p)
-        problem = cp.Problem(cp.Minimize(block.variance), [p >= 0, cp.sum(p) == 1, *block.constraints])
+        variance, constraints = risk_expression(risk_arrays(view), p)
+        problem = cp.Problem(cp.Minimize(variance), [p >= 0, cp.sum(p) == 1, *constraints])
         data, _, _ = problem.get_problem_data(cp.OSQP)
         sizes.append((data['P'].shape, data['P'].nnz, data['A'].shape, data['A'].nnz))
     assert sizes[0] == sizes[1]
@@ -76,10 +77,11 @@ def test_noop_and_full_view():
     source.update(factor_exposure=np.ones((18, 3)), specific_variance=np.ones(18))
     view = adjust_barra(**source).for_symbols(['S0', 'S1'])
     p = cp.Variable(2, value=np.ones(2))
-    block = view.cvxpy_risk(p)
-    block.set_reference_values()
-    np.testing.assert_allclose(block.variance.value, view.variance(p.value))
-    assert len(block.constraints) == 1
+    variance, constraints = risk_expression(risk_arrays(view), p)
+    problem = cp.Problem(cp.Minimize(variance), [p == np.ones(2), *constraints])
+    problem.solve(solver='CLARABEL')
+    np.testing.assert_allclose(variance.value, view.variance(p.value), atol=1e-10)
+    assert len(constraints) == 1
 
 
 def test_prepare_once_reuse_across_future_positions():
@@ -89,17 +91,13 @@ def test_prepare_once_reuse_across_future_positions():
     dense = view.to_dense()
     positions = cp.Variable((3, 3))
     prices = np.array([[10., 20., 30.], [11., 21., 31.], [12., 22., 32.]])
-    blocks = [view.cvxpy_risk(cp.multiply(prices[t], positions[t])) for t in range(3)]
-    with pytest.raises(ValueError, match='variable value'):
-        blocks[0].set_reference_values()
+    payload = risk_arrays(view)
+    blocks = [risk_expression(payload, cp.multiply(prices[t], positions[t])) for t in range(3)]
     holdings = np.array([[1., 2., 3.], [2., -1., 3.], [4., -3., 1.]])
-    positions.value = holdings
-    for t, block in enumerate(blocks):
-        block.set_reference_values()
-        dollars = prices[t] * holdings[t]
-        np.testing.assert_allclose(block.variance.value, dollars @ dense @ dollars, atol=1e-10)
-    problem = cp.Problem(cp.Minimize(sum(b.variance for b in blocks)),
-                         [positions == holdings, *(c for b in blocks for c in b.constraints)])
+    for dollars in prices*holdings:
+        np.testing.assert_allclose(portfolio_variance(payload, dollars), dollars @ dense @ dollars, atol=1e-10)
+    problem = cp.Problem(cp.Minimize(sum(value for value, _ in blocks)),
+                         [positions == holdings, *(c for _, constraints in blocks for c in constraints)])
     problem.solve(solver='CLARABEL')
     assert problem.status == cp.OPTIMAL
     np.testing.assert_allclose(problem.value, sum(view.variance(p) for p in prices*holdings), atol=1e-9)

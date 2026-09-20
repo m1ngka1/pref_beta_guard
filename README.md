@@ -3,15 +3,18 @@
 对运行当天最新的一份 Barra 风险数据处理一次，结果放入现有 context，未来交易日复用。核心仅依赖 NumPy；不包含数据 loader、日期管线或 planner bridge。
 
 ```python
-from barra_guard import adjust_barra
+from barra_guard import adjust_barra, risk_arrays, portfolio_variance
 
 adjusted = adjust_barra(X, F, d, market_weights=w, predicted_beta=beta, symbols=symbols)
-risk = adjusted.risk                          # 完整模型的结构化 Σ*
+risk_data = risk_arrays(adjusted.risk)  # 只有 NumPy 数组和数值，可直接存入 context
 beta_star = adjusted.predicted_beta
-# 只交易部分股票时，准备一次：risk = adjusted.for_symbols(traded_symbols)
+variance = portfolio_variance(risk_data, portfolio_weights)  # 下游数值计算
+# 只交易子集时：risk_data = risk_arrays(adjusted.for_symbols(traded_symbols))
 ```
 
 缺少 w 时传 `market_weights=None`，用原 beta 恢复；已有 w 时 beta 可省略。X、F、d 及向量必须已按同一股票/因子顺序对齐，d 是方差。完整用法见 [接入说明](SNAPSHOT_INTEGRATION.md)，数学依据见 [推导](BETA_ADJUSTMENT_METHODS.md)。
+
+输出不是 CVXPY 对象，不要求下游使用特定 solver。需要完整 Σ* 时调用 `covariance_matrix(risk_data)`。独立的 `barra_guard/cvxpy_adapter.py` 仅是可选的表达式构建函数；不用 CVXPY 就无需使用或迁移该文件。
 
 ## 文件结构
 
@@ -22,16 +25,17 @@ beta_star = adjusted.predicted_beta
 | `factor_covariance/` | 保持 X、D 不变，只修改 F 的备选方法；需要 CVXPY，可能无解。 |
 | `market_recovery.py` | 从原 beta 和风险模型恢复市场权重。 |
 | `tests/` | 所有数学、输入边界和下游优化测试。 |
-| `examples/standalone_barra.py` | 唯一的端到端使用示例。 |
+| `examples/standalone_barra.py` | 纯 NumPy 示例：预处理、保存数据、下游风险计算。 |
 
 ## 安装、运行、迁移
 
 Python >= 3.11。只保留根目录这一套配置和锁文件：
 
 ```bash
-uv sync --locked --extra optimization
+uv sync --locked
+uv run --locked python examples/standalone_barra.py
+# 完整测试包括因子协方差方法和可选 CVXPY 接口：
 uv run --locked --extra optimization pytest -q
-uv run --locked --extra optimization python examples/standalone_barra.py
 ```
 
 集成到下游环境可安装本仓库或 `uv build` 生成的 wheel，也可按接入说明复制核心文件。仅预处理和数值风险不需要 `optimization` extra。测试使用合成数据；验证了数学一致性和接口，不代表已验证生产数据或预测改善。

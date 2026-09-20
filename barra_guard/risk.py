@@ -1,34 +1,12 @@
 """Exact selected-name risk calculations; no planner or date handling."""
 
-from dataclasses import dataclass
-
 import numpy as np
 
-from stock_covariance import CvxpyRisk
 from ._validation import _array
 
 
-@dataclass(frozen=True)
-class BarraRiskBlock(CvxpyRisk):
-    view: 'BarraView'
-    exposure: object
-
-    def set_reference_values(self):
-        """Populate auxiliaries after setting holdings.value, before evaluating
-        a reference objective for numerical scaling. Call anew if holdings change.
-        This sets initial values only; it does not replace the equalities.
-        """
-        if self.exposure.value is None:
-            raise ValueError('set the underlying position variable value first')
-        t, z, y = self.view._parts(self.exposure.value)
-        if np.any(self.view.delta != 0):
-            self.shift_exposure.value = t
-            self.transformed_exposure.value = z
-        self.factor_scores.value = y
-
-
 class BarraView:
-    """Exact principal risk for M selected names, with only O(MK+M) CVXPY data.
+    """Exact principal risk for M selected names, with only O(MK+M) numeric data.
 
     Non-held names influence the market adjustment via h=U.T@w and v_out.
     Never normalize selected market weights or recalibrate on the subset.
@@ -77,24 +55,3 @@ class BarraView:
 
     def to_dense(self):
         return self.adjusted.risk.to_dense(self.indices)
-
-    def cvxpy_risk(self, exposure, *, name='barra'):
-        import cvxpy as cp
-        p = cp.Expression.cast_to_const(exposure)
-        m, k = self.U.shape
-        if p.shape == (m, 1):
-            p = cp.reshape(p, (m,), order='F')
-        if p.shape != (m,) or not p.is_affine():
-            raise ValueError('exposure must be an affine vector in view.symbols order')
-        y = cp.Variable(k, name=f'{name}_factors')
-        if np.any(self.delta != 0):
-            t, z = cp.Variable(name=f'{name}_shift'), cp.Variable(m, name=f'{name}_specific')
-            constraints = (t == self.delta @ p, z == p + self.w*t, y == self.U.T @ p + self.h*t)
-        else:
-            t, z = cp.Constant(0.), p
-            constraints = (y == self.U.T @ p,)
-        variance = (cp.sum_squares(y) + cp.sum(cp.multiply(self.d, cp.square(z)))
-                    + self.outside_specific_variance * cp.square(t))
-        volatility = cp.norm(cp.hstack([y, cp.multiply(np.sqrt(self.d), z),
-                                        np.sqrt(self.outside_specific_variance)*t]), 2)
-        return BarraRiskBlock(variance, volatility, constraints, z, y, t, self, p)
